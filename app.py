@@ -38,14 +38,19 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 4rem;
         white-space: pre-wrap;
-        background-color: #f0f2f6;
+        background-color: #222831; /* dark background for unselected tabs */
+        color: #f8f8f8 !important; /* white text for unselected tabs */
         border-radius: 4px 4px 0 0;
         gap: 1rem;
         padding-top: 10px;
         padding-bottom: 10px;
+        font-weight: 600;
+        font-size: 1.1rem;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #ffffff;
+        background-color: #ffd369 !important; /* bright yellow for selected tab */
+        color: #222831 !important; /* dark text for selected tab */
+        border-bottom: 3px solid #ffd369;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -412,7 +417,7 @@ def safe_int(val, default):
         return default
 
 # Helper for section spacing
-SECTION_SPACING = '\n<div style="height:32px;"></div>\n'
+SECTION_SPACING = '\n<div style="height:32px;background:transparent;"></div>\n'
 
 # Helper to run analysis and show results
 def run_analysis(property_data, assumptions, property_type):
@@ -455,8 +460,7 @@ def run_analysis(property_data, assumptions, property_type):
         'y_train': milwaukee_data['price']
     })
     # Visualizations
-    st.markdown(SECTION_SPACING, unsafe_allow_html=True)
-    st.markdown('<div style="box-shadow:0 2px 8px #0001;border-radius:16px;padding:2rem 1rem 1rem 1rem;background:#fff;">', unsafe_allow_html=True)
+    st.markdown('<div style="box-shadow:0 2px 8px #0001;border-radius:16px;padding:2rem 1rem 1rem 1rem;background:#181c24;">', unsafe_allow_html=True)
     st.markdown('<div style="font-size:1.4rem;font-weight:700;margin-bottom:1rem;">Summary Metrics</div>', unsafe_allow_html=True)
     metric_keys = [
         ("Monthly Cash Flow", f"${metrics['monthly_cash_flow']:.2f}", colorize(metrics["monthly_cash_flow"], True, 0)),
