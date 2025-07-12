@@ -1,10 +1,5 @@
 {
   "framework": "create-react-app",
-  "functions": {
-    "app/api/**/*.js": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "buildCommand": "CI=false NODE_OPTIONS='--max-old-space-size=4096' npm run build",
   "env": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
