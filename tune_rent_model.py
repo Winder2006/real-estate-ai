@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.model_selection import train_test_split, RandomizedSearchCV, cross_val_score
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.pipeline import Pipeline
@@ -214,4 +214,10 @@ print(search_gb.best_params_)
 # Save the best GradientBoostingRegressor pipeline
 os.makedirs('models', exist_ok=True)
 joblib.dump(search_gb.best_estimator_, 'models/rent_predictor.joblib')
-print("\nSaved best GradientBoostingRegressor model to models/rent_predictor.joblib") 
+print("\nSaved best GradientBoostingRegressor model to models/rent_predictor.joblib")
+
+# 5-fold cross-validation on the best XGBoost model
+cv_scores = cross_val_score(search_xgb.best_estimator_, X_train, y_train, cv=5, scoring='neg_mean_absolute_error')
+cv_mae_scores = -cv_scores
+print(f"\n[XGBoost] 5-Fold CV MAE scores: {cv_mae_scores}")
+print(f"[XGBoost] 5-Fold CV MAE mean: {cv_mae_scores.mean():.2f}, std: {cv_mae_scores.std():.2f}") 
