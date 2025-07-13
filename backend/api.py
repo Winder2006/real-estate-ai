@@ -5,7 +5,7 @@ import numpy as np
 import joblib
 import os
 from utils.ml_models import RentPredictor, PropertyPricePredictor
-from utils.data_loader import load_and_clean_sales_data
+from utils.data_loader import load_and_clean_sales_data, load_rental_data
 from utils.analysis import calculate_investment_metrics
 import numpy_financial as npf
 
@@ -16,25 +16,40 @@ CORS(app)  # Enable CORS for React frontend
 rent_predictor = None
 price_predictor = None
 comps_data = None
+rental_data = None
 
 def load_models():
-    global rent_predictor, price_predictor, comps_data
+    global rent_predictor, price_predictor, comps_data, rental_data
     try:
         rent_predictor = RentPredictor()
         rent_predictor.load_model('models/rent_predictor.joblib')
+        print("✅ Rent predictor loaded successfully")
     except Exception as e:
-        print(f"Could not load rent predictor: {e}")
+        print(f"❌ Could not load rent predictor: {e}")
     
     try:
         price_predictor = PropertyPricePredictor()
         price_predictor.load_model('models/price_predictor.joblib')
+        print("✅ Price predictor loaded successfully")
     except Exception as e:
-        print(f"Could not load price predictor: {e}")
+        print(f"❌ Could not load price predictor: {e}")
     
     try:
+        # Load sales data for price comparisons
         comps_data = load_and_clean_sales_data()
+        print(f"✅ Sales data loaded: {len(comps_data)} records")
     except Exception as e:
-        print(f"Could not load comps data: {e}")
+        print(f"❌ Could not load sales data: {e}")
+    
+    try:
+        # Load rental data for rent predictions and comparisons
+        rental_data = load_rental_data()
+        if rental_data is not None:
+            print(f"✅ Rental data loaded: {len(rental_data)} records")
+        else:
+            print("❌ No rental data loaded")
+    except Exception as e:
+        print(f"❌ Could not load rental data: {e}")
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -195,25 +210,129 @@ def analyze_property():
 @app.route('/api/market-data', methods=['GET'])
 def get_market_data():
     try:
-        if comps_data is None:
-            return jsonify({
-                'success': False,
-                'error': 'Market data not available'
-            }), 400
+        response_data = {'success': True, 'marketData': {}}
         
-        # Calculate market statistics
-        avg_price = comps_data['price'].mean()
-        avg_price_per_sqft = (comps_data['price'] / comps_data['sqft']).mean()
-        
-        return jsonify({
-            'success': True,
-            'marketData': {
+        # Sales data statistics
+        if comps_data is not None:
+            avg_price = comps_data['price'].mean()
+            avg_price_per_sqft = (comps_data['price'] / comps_data['sqft']).mean()
+            
+            response_data['marketData']['sales'] = {
                 'avgPrice': float(avg_price),
                 'avgPricePerSqft': float(avg_price_per_sqft),
                 'totalProperties': len(comps_data),
                 'priceRange': {
                     'min': float(comps_data['price'].min()),
                     'max': float(comps_data['price'].max())
+                }
+            }
+        
+        # Rental data statistics
+        if rental_data is not None:
+            avg_rent = rental_data['rent'].mean()
+            avg_rent_per_sqft = (rental_data['rent'] / rental_data['FinishedSqft']).mean()
+            
+            response_data['marketData']['rentals'] = {
+                'avgRent': float(avg_rent),
+                'avgRentPerSqft': float(avg_rent_per_sqft),
+                'totalRentals': len(rental_data),
+                'rentRange': {
+                    'min': float(rental_data['rent'].min()),
+                    'max': float(rental_data['rent'].max())
+                },
+                'avgRentByType': rental_data.groupby('PropertyType')['rent'].mean().to_dict() if 'PropertyType' in rental_data.columns else {},
+                'avgRentByNeighborhood': rental_data.groupby('nbhd')['rent'].mean().head(10).to_dict() if 'nbhd' in rental_data.columns else {}
+            }
+        
+        if comps_data is None and rental_data is None:
+            return jsonify({
+                'success': False,
+                'error': 'No market data available'
+            }), 400
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+
+@app.route('/api/rental-comps', methods=['POST'])
+def get_rental_comps():
+    """Get comparable rental properties"""
+    try:
+        if rental_data is None:
+            return jsonify({
+                'success': False,
+                'error': 'Rental data not available'
+            }), 400
+        
+        data = request.json
+        bedrooms = data.get('bedrooms', 0)
+        bathrooms = data.get('bathrooms', 0)
+        sqft = data.get('sqft', 0)
+        neighborhood = data.get('neighborhood', '')
+        property_type = data.get('propertyType', '')
+        
+        # Filter rental comps
+        filtered_data = rental_data.copy()
+        
+        # Filter by bedrooms (±1)
+        if bedrooms > 0:
+            filtered_data = filtered_data[
+                (filtered_data['Bedrooms'] >= bedrooms - 1) & 
+                (filtered_data['Bedrooms'] <= bedrooms + 1)
+            ]
+        
+        # Filter by bathrooms (±0.5)
+        if bathrooms > 0:
+            filtered_data = filtered_data[
+                (filtered_data['Bathrooms'] >= bathrooms - 0.5) & 
+                (filtered_data['Bathrooms'] <= bathrooms + 1)
+            ]
+        
+        # Filter by square footage (±300 sqft)
+        if sqft > 0:
+            filtered_data = filtered_data[
+                (filtered_data['FinishedSqft'] >= sqft - 300) & 
+                (filtered_data['FinishedSqft'] <= sqft + 300)
+            ]
+        
+        # Prefer same neighborhood
+        if neighborhood:
+            neighborhood_matches = filtered_data[filtered_data['nbhd'].str.contains(neighborhood, case=False, na=False)]
+            if len(neighborhood_matches) >= 3:
+                filtered_data = neighborhood_matches
+        
+        # Prefer same property type
+        if property_type:
+            type_matches = filtered_data[filtered_data['PropertyType'].str.contains(property_type, case=False, na=False)]
+            if len(type_matches) >= 3:
+                filtered_data = type_matches
+        
+        # Get top 10 most similar
+        comps = filtered_data.head(10).to_dict('records')
+        
+        # Calculate rental statistics
+        if len(filtered_data) > 0:
+            avg_rent = filtered_data['rent'].mean()
+            rent_per_sqft = filtered_data['rent'] / filtered_data['FinishedSqft']
+            avg_rent_per_sqft = rent_per_sqft.mean()
+        else:
+            avg_rent = 0
+            avg_rent_per_sqft = 0
+        
+        return jsonify({
+            'success': True,
+            'comps': comps,
+            'stats': {
+                'avgRent': float(avg_rent),
+                'avgRentPerSqft': float(avg_rent_per_sqft),
+                'totalComps': len(comps),
+                'rentRange': {
+                    'min': float(filtered_data['rent'].min()) if len(filtered_data) > 0 else 0,
+                    'max': float(filtered_data['rent'].max()) if len(filtered_data) > 0 else 0
                 }
             }
         })

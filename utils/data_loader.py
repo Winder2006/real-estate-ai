@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from pathlib import Path
+import os
 
 def load_milwaukee_dataset():
     """Load and prepare the Milwaukee real estate dataset"""
@@ -122,3 +123,90 @@ def load_and_clean_sales_data():
     df['lot_size'] = df['Lotsize']
     df['price'] = df['Sale_price']
     return df 
+
+def load_rental_data():
+    """Load and prepare the rental data from Excel file"""
+    try:
+        # Try multiple locations for the rental data
+        possible_paths = [
+            # Desktop path (local development)
+            os.path.join(str(Path.home() / "Desktop"), 'Rent Data.xlsx'),
+            # Project data directory (for deployment)
+            'data/rental_data.csv',
+            'backend/data/rental_data.csv',
+            # Relative to current directory
+            '../Rent Data.xlsx',
+            './Rent Data.xlsx'
+        ]
+        
+        df = None
+        data_source = None
+        
+        for path in possible_paths:
+            try:
+                if path.endswith('.xlsx') and os.path.exists(path):
+                    print(f"Loading rental data from Excel: {path}")
+                    df = pd.read_excel(path)
+                    data_source = path
+                    break
+                elif path.endswith('.csv') and os.path.exists(path):
+                    print(f"Loading rental data from CSV: {path}")
+                    df = pd.read_csv(path)
+                    data_source = path
+                    break
+            except Exception as e:
+                print(f"Failed to load from {path}: {e}")
+                continue
+        
+        if df is None:
+            print("❌ Could not find rental data file in any expected location")
+            print("Expected locations:")
+            for path in possible_paths:
+                print(f"  - {path}")
+            return None
+        
+        print(f"✅ Found rental data at: {data_source}")
+        
+        # Rename columns to match our model's expected format
+        column_mapping = {
+            'Neighborhood': 'nbhd',
+            'Rent ($)': 'rent',
+            'Size (ft²)': 'FinishedSqft',
+            '$/ft²': 'price_per_sqft',
+            'Beds': 'Bedrooms',
+            'Baths': 'Bathrooms',
+            'Building Type': 'PropertyType',
+            'Last Seen': 'Sale_date',
+            'Zip-Code': 'zipcode'
+        }
+        
+        df = df.rename(columns=column_mapping)
+        
+        # Convert numeric columns to proper types
+        numeric_columns = ['rent', 'FinishedSqft', 'price_per_sqft', 'Bedrooms', 'Bathrooms']
+        for col in numeric_columns:
+            if col in df.columns:
+                if col == 'price_per_sqft':
+                    # Extract only the numeric part (handles values like '0.85/ft²')
+                    df[col] = df[col].astype(str).str.extract(r'([\d\.]+)').astype(float)
+                elif col == 'rent':
+                    df[col] = df[col].astype(str).str.replace('$', '').str.replace(',', '').astype(float)
+                else:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # Basic cleaning: keep rows with rent and at least one feature
+        df = df[df['rent'].notna() & (
+            df['FinishedSqft'].notna() |
+            df['Bedrooms'].notna() |
+            df['Bathrooms'].notna() |
+            df['nbhd'].notna() |
+            df['PropertyType'].notna() |
+            df['zipcode'].notna()
+        )]
+        
+        print(f"✅ Loaded {len(df)} rental records from {data_source}")
+        return df
+        
+    except Exception as e:
+        print(f"❌ Error loading rental data: {str(e)}")
+        return None 
