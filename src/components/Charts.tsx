@@ -1,5 +1,6 @@
 import React from 'react';
 import { BarChart3, PieChart, TrendingUp, DollarSign } from 'lucide-react';
+import ExcelExportButton from './ExcelExportButton.tsx';
 import {
   BarChart,
   Bar,
@@ -41,12 +42,25 @@ interface AnalysisResults {
   paybackPeriod: number;
 }
 
+interface InvestmentAssumptions {
+  downPaymentPct: number;
+  interestRate: number;
+  loanTerm: number;
+  propertyTaxRate: number;
+  insuranceRate: number;
+  maintenanceRate: number;
+  capitalReservesRate: number;
+  vacancyRate: number;
+  closingCostsPct: number;
+}
+
 interface ChartsProps {
   results: AnalysisResults;
   propertyData: PropertyData;
+  assumptions: InvestmentAssumptions;
 }
 
-const Charts: React.FC<ChartsProps> = ({ results, propertyData }) => {
+const Charts: React.FC<ChartsProps> = ({ results, propertyData, assumptions }) => {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -101,9 +115,18 @@ const Charts: React.FC<ChartsProps> = ({ results, propertyData }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-2 mb-6">
-        <BarChart3 className="h-6 w-6 text-primary-600" />
-        <h2 className="text-2xl font-bold text-gray-900">Charts & Reports</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <BarChart3 className="h-6 w-6 text-primary-600" />
+          <h2 className="text-2xl font-bold text-gray-900">Charts & Reports</h2>
+        </div>
+        <ExcelExportButton
+          propertyData={propertyData}
+          analysisResults={results}
+          assumptions={assumptions}
+          size="md"
+          variant="outline"
+        />
       </div>
 
       {/* Monthly Cash Flow Breakdown */}

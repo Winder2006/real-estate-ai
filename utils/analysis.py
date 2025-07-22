@@ -3,6 +3,68 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
+def calculate_investment_metrics(property_data, analysis_results, assumptions):
+    """Calculate comprehensive investment metrics for a property"""
+    
+    price = property_data.get('price', 0)
+    monthly_rent = analysis_results.get('monthlyRent', 0)
+    
+    # Basic calculations
+    down_payment = price * (assumptions.get('downPaymentPct', 20) / 100)
+    loan_amount = price - down_payment
+    
+    # Monthly mortgage payment calculation
+    monthly_rate = assumptions.get('interestRate', 5.0) / 100 / 12
+    num_payments = assumptions.get('loanTerm', 30) * 12
+    
+    if loan_amount > 0 and monthly_rate > 0:
+        monthly_payment = loan_amount * (monthly_rate * (1 + monthly_rate)**num_payments) / ((1 + monthly_rate)**num_payments - 1)
+    else:
+        monthly_payment = 0
+    
+    # Operating expenses
+    monthly_property_tax = price * (assumptions.get('propertyTaxRate', 3.0) / 100) / 12
+    monthly_insurance = price * (assumptions.get('insuranceRate', 0.5) / 100) / 12
+    monthly_management = monthly_rent * 0.08  # 8% management fee
+    monthly_maintenance = monthly_rent * (assumptions.get('maintenanceRate', 1.0) / 100)
+    monthly_capital_reserves = monthly_rent * (assumptions.get('capitalReservesRate', 1.0) / 100)
+    monthly_vacancy = monthly_rent * (assumptions.get('vacancyRate', 5.0) / 100)
+    
+    total_monthly_expenses = (monthly_property_tax + monthly_insurance + monthly_management + 
+                             monthly_maintenance + monthly_capital_reserves + monthly_vacancy)
+    
+    monthly_cash_flow = monthly_rent - monthly_payment - total_monthly_expenses
+    
+    # Investment metrics
+    annual_noi = (monthly_rent * 12) - (total_monthly_expenses * 12)
+    cap_rate = (annual_noi / price) * 100 if price > 0 else 0
+    
+    total_upfront_cost = down_payment + price * (assumptions.get('closingCostsPct', 3.0) / 100)
+    cash_on_cash = (monthly_cash_flow * 12) / total_upfront_cost * 100 if total_upfront_cost > 0 else 0
+    
+    break_even_rent = monthly_payment + total_monthly_expenses
+    rent_to_price = (monthly_rent / price) * 100 if price > 0 else 0
+    
+    # Total ROI with appreciation
+    appreciation = price * 0.03  # 3% appreciation
+    total_roi = ((monthly_cash_flow * 12) + appreciation) / total_upfront_cost * 100 if total_upfront_cost > 0 else 0
+    
+    payback_period = total_upfront_cost / (monthly_cash_flow * 12) if monthly_cash_flow > 0 else float('inf')
+    
+    return {
+        'monthlyRent': monthly_rent,
+        'monthlyPayment': monthly_payment,
+        'monthlyCashFlow': monthly_cash_flow,
+        'capRate': cap_rate,
+        'cashOnCash': cash_on_cash,
+        'breakEvenRent': break_even_rent,
+        'rentToPrice': rent_to_price,
+        'totalROI': total_roi,
+        'paybackPeriod': payback_period if payback_period != float('inf') else 999,
+        'totalUpfrontCost': total_upfront_cost,
+        'annualNOI': annual_noi
+    }
+
 def calculate_roi(monthly_cash_flow, down_payment, annual_appreciation_rate=0.03):
     """Calculate Return on Investment"""
     annual_cash_flow = monthly_cash_flow * 12

@@ -1,12 +1,19 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import pandas as pd
 import numpy as np
 import joblib
 import os
+import io
+from datetime import datetime
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils.ml_models import RentPredictor, PropertyPricePredictor
 from utils.data_loader import load_and_clean_sales_data, load_rental_data
 from utils.analysis import calculate_investment_metrics
+from utils.excel_generator import RealEstateExcelGenerator
 import numpy_financial as npf
 
 app = Flask(__name__)
@@ -342,6 +349,65 @@ def get_rental_comps():
             'success': False,
             'error': str(e)
         }), 400
+
+@app.route('/api/export-excel', methods=['POST'])
+def export_excel():
+    """Generate and download Excel pro forma"""
+    try:
+        data = request.json
+        
+        # Extract property data
+        property_data = {
+            'address': data.get('address', ''),
+            'price': float(data.get('price', 0)),
+            'beds': int(data.get('beds', 0)),
+            'baths': float(data.get('baths', 0)),
+            'sqft': float(data.get('sqft', 0)),
+            'neighborhood': data.get('neighborhood', ''),
+            'propertyType': data.get('propertyType', 'House'),
+            'zipcode': data.get('zipcode', ''),
+            'totalUnits': int(data.get('totalUnits', 1))  # Added missing totalUnits!
+        }
+        
+        # Extract analysis results
+        results = data.get('results', {})
+        
+        # Extract assumptions
+        assumptions = data.get('assumptions', {})
+        
+        # Get project name if provided
+        project_name = data.get('projectName', f"Investment Analysis - {property_data['address']}")
+        
+        # Generate Excel file
+        excel_generator = RealEstateExcelGenerator()
+        excel_data = excel_generator.create_pro_forma(
+            property_data, 
+            results, 
+            assumptions, 
+            project_name
+        )
+        
+        # Create a BytesIO object
+        excel_file = io.BytesIO(excel_data)
+        excel_file.seek(0)
+        
+        # Generate filename
+        address_clean = property_data.get('address', 'Property').replace(' ', '_').replace(',', '')
+        filename = f"Real_Estate_Pro_Forma_{address_clean}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        return send_file(
+            excel_file,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print(f"Excel export error: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate Excel file: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     print("Loading models...")

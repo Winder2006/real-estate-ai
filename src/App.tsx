@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Building2, Calculator, TrendingUp, MapPin, DollarSign, Home, BarChart3 } from 'lucide-react';
+import { Building2, Calculator, TrendingUp, MapPin, DollarSign, Home, BarChart3, FileSpreadsheet } from 'lucide-react';
 import PropertyForm from './components/PropertyForm.tsx';
 import InvestmentMetrics from './components/InvestmentMetrics.tsx';
 import RentalAnalysis from './components/RentalAnalysis.tsx';
 import MarketComps from './components/MarketComps.tsx';
 import Charts from './components/Charts.tsx';
+import ProFormaBuilder from './components/ProFormaBuilder.tsx';
 
 interface PropertyData {
   address: string;
@@ -73,7 +74,8 @@ function App() {
     { id: 'analysis', label: 'Investment Analysis', icon: Calculator },
     { id: 'rental', label: 'Rental Analysis', icon: Building2 },
     { id: 'market', label: 'Market Comps', icon: MapPin },
-    { id: 'charts', label: 'Charts & Reports', icon: BarChart3 }
+    { id: 'charts', label: 'Charts & Reports', icon: BarChart3 },
+    { id: 'proforma', label: 'Pro Forma Builder', icon: FileSpreadsheet }
   ];
 
   const handleAnalyze = () => {
@@ -202,7 +204,7 @@ function App() {
         )}
         
         {activeTab === 'analysis' && analysisResults && (
-          <InvestmentMetrics results={analysisResults} propertyData={propertyData} />
+          <InvestmentMetrics results={analysisResults} propertyData={propertyData} assumptions={assumptions} />
         )}
         
         {activeTab === 'rental' && analysisResults && (
@@ -214,7 +216,11 @@ function App() {
         )}
         
         {activeTab === 'charts' && analysisResults && (
-          <Charts results={analysisResults} propertyData={propertyData} />
+          <Charts results={analysisResults} propertyData={propertyData} assumptions={assumptions} />
+        )}
+        
+        {activeTab === 'proforma' && (
+          <ProFormaBuilder />
         )}
       </main>
     </div>

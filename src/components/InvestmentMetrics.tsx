@@ -1,5 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Percent, Clock, Target, Zap, Calculator } from 'lucide-react';
+import ExcelExportButton from './ExcelExportButton.tsx';
 
 interface PropertyData {
   address: string;
@@ -24,12 +25,25 @@ interface AnalysisResults {
   paybackPeriod: number;
 }
 
+interface InvestmentAssumptions {
+  downPaymentPct: number;
+  interestRate: number;
+  loanTerm: number;
+  propertyTaxRate: number;
+  insuranceRate: number;
+  maintenanceRate: number;
+  capitalReservesRate: number;
+  vacancyRate: number;
+  closingCostsPct: number;
+}
+
 interface InvestmentMetricsProps {
   results: AnalysisResults;
   propertyData: PropertyData;
+  assumptions: InvestmentAssumptions;
 }
 
-const InvestmentMetrics: React.FC<InvestmentMetricsProps> = ({ results, propertyData }) => {
+const InvestmentMetrics: React.FC<InvestmentMetricsProps> = ({ results, propertyData, assumptions }) => {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -94,9 +108,18 @@ const InvestmentMetrics: React.FC<InvestmentMetricsProps> = ({ results, property
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-2 mb-6">
-        <Calculator className="h-6 w-6 text-primary-600" />
-        <h2 className="text-2xl font-bold text-gray-900">Investment Analysis</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <Calculator className="h-6 w-6 text-primary-600" />
+          <h2 className="text-2xl font-bold text-gray-900">Investment Analysis</h2>
+        </div>
+        <ExcelExportButton
+          propertyData={propertyData}
+          analysisResults={results}
+          assumptions={assumptions}
+          size="md"
+          variant="primary"
+        />
       </div>
 
       {/* Recommendation Card */}
