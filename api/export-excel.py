@@ -4,8 +4,18 @@ import os
 import traceback
 from http.server import BaseHTTPRequestHandler
 
-# Add the project root to Python path to import our modules
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Test pandas and xlsxwriter imports first
+try:
+    import pandas as pd
+    print("✅ Successfully imported pandas")
+except ImportError as e:
+    print(f"❌ Failed to import pandas: {e}")
+
+try:
+    import xlsxwriter
+    print("✅ Successfully imported xlsxwriter")
+except ImportError as e:
+    print(f"❌ Failed to import xlsxwriter: {e}")
 
 # Import from local excel_generator file
 try:
@@ -13,6 +23,7 @@ try:
     print("✅ Successfully imported RealEstateExcelGenerator")
 except ImportError as e:
     print(f"❌ Failed to import RealEstateExcelGenerator: {e}")
+    print(f"❌ Import traceback: {traceback.format_exc()}")
     RealEstateExcelGenerator = None
 
 from datetime import datetime
