@@ -1,3 +1,5 @@
+import { ClientExcelGenerator } from './clientExcelGenerator';
+
 interface PropertyData {
   address: string;
   price: number;
@@ -7,6 +9,7 @@ interface PropertyData {
   neighborhood: string;
   propertyType: string;
   zipcode: string;
+  totalUnits?: number;
 }
 
 interface AnalysisResults {
@@ -19,6 +22,7 @@ interface AnalysisResults {
   rentToPrice: number;
   totalROI: number;
   paybackPeriod: number;
+  annualNOI?: number;
 }
 
 interface InvestmentAssumptions {
@@ -33,20 +37,6 @@ interface InvestmentAssumptions {
   closingCostsPct: number;
 }
 
-interface ExcelExportData {
-  address: string;
-  price: number;
-  beds: number;
-  baths: number;
-  sqft: number;
-  neighborhood: string;
-  propertyType: string;
-  zipcode: string;
-  results: AnalysisResults;
-  assumptions: InvestmentAssumptions;
-  projectName?: string;
-}
-
 export const downloadExcelReport = async (
   propertyData: PropertyData,
   analysisResults: AnalysisResults,
@@ -54,30 +44,22 @@ export const downloadExcelReport = async (
   projectName?: string
 ): Promise<void> => {
   try {
-    // Prepare the data payload
-    const exportData: ExcelExportData = {
-      ...propertyData,
-      results: analysisResults,
-      assumptions: assumptions,
-      projectName: projectName || `Investment Analysis - ${propertyData.address}`
-    };
+    // Create project name if not provided
+    const finalProjectName = projectName || `Investment Analysis - ${propertyData.address}`;
 
-    // Make API call to backend
-    const response = await fetch('http://127.0.0.1:5000/api/export-excel', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(exportData),
+    // Generate Excel file using client-side generator
+    const generator = new ClientExcelGenerator();
+    const buffer = await generator.generateProForma(
+      propertyData,
+      analysisResults,
+      assumptions,
+      finalProjectName
+    );
+
+    // Create blob from buffer
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to generate Excel report');
-    }
-
-    // Get the blob from response
-    const blob = await response.blob();
     
     // Create download link
     const url = window.URL.createObjectURL(blob);
@@ -103,10 +85,11 @@ export const downloadExcelReport = async (
   }
 };
 
+// Generate a project name based on property data
 export const generateProjectName = (propertyData: PropertyData): string => {
-  const address = propertyData.address || 'Property';
-  const type = propertyData.propertyType || 'Investment';
-  return `${type} Analysis - ${address}`;
+  const address = propertyData.address || 'Unknown Address';
+  const type = propertyData.propertyType || 'Property';
+  return `${type} Investment Analysis - ${address}`;
 };
 
 // Utility to validate data before export
