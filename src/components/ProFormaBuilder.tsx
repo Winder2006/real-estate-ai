@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calculator, Building2, DollarSign, Calendar, FileSpreadsheet, Plus, Minus, Edit3 } from 'lucide-react';
-import { downloadExcelReport } from '../utils/excelExport';
+import { exportToExcel } from '../utils/excelExport';
 
 // Helper functions for number formatting
 const formatNumberWithCommas = (value: number): string => {
@@ -263,7 +263,7 @@ export default function ProFormaBuilder() {
         closingCostsPct: 3.0
       };
 
-      await downloadExcelReport(
+                await exportToExcel(
         propertyData,
         analysisResults,
         assumptions,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileSpreadsheet, Download, AlertCircle, CheckCircle } from 'lucide-react';
-import { downloadExcelReport, validateExportData, generateProjectName } from '../utils/excelExport';
+import { exportToExcel } from '../utils/excelExport';
 
 interface PropertyData {
   address: string;
@@ -76,10 +76,10 @@ export default function ExcelExportButton({
       }
 
       // Generate project name if not provided
-      const finalProjectName = projectName || generateProjectName(propertyData);
+      const finalProjectName = projectName || `Investment Analysis - ${propertyData.address}`;
 
       // Download the Excel file
-      await downloadExcelReport(propertyData, analysisResults, assumptions, finalProjectName);
+      await exportToExcel(propertyData, analysisResults, assumptions, finalProjectName);
       
       setExportStatus('success');
       

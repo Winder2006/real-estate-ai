@@ -61,9 +61,13 @@ export class ClientExcelGenerator {
     // Create workbook
     const workbook = new ExcelJS.Workbook();
     
-    // Enable calculation - this is crucial for formulas to work
-    workbook.calcProperties.fullCalcOnLoad = true;
-    workbook.calcProperties.calcMode = 'automatic';
+    // CRITICAL: Force Excel to calculate formulas when file opens
+    workbook.calcProperties = {
+      fullCalcOnLoad: true,
+      calcMode: 'automatic',
+      calcOnSave: true,
+      forceFullCalc: true
+    };
     
     // Create worksheets
     const summaryWs = workbook.addWorksheet('Executive Summary');
@@ -94,7 +98,7 @@ export class ClientExcelGenerator {
       };
     });
 
-    // Force calculation for all worksheets
+    // CRITICAL: Force calculation for all worksheets
     [summaryWs, proformaWs, assumptionsWs, sensitivityWs].forEach(ws => {
       ws.calcProperties = {
         fullCalcOnLoad: true
@@ -717,76 +721,60 @@ export class ClientExcelGenerator {
     Object.assign(grossRentalCell, this.formats.sectionHeaderRevenue);
     row++;
 
-    // Rental Income - HYBRID: Set calculated values AND formulas
+    // Rental Income - USE CALCULATED VALUES ONLY (like backend does)
     ws.getCell(`A${row}`).value = 'Gross Rental Income';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
 
-    // Calculate and set actual values first, then add formulas
+    // Calculate actual values directly in JavaScript (like backend does in Python)
     for (let year = 0; year < 5; year++) {
       const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
-      
-      // GUARANTEED VALUE: Calculate directly
       const calculatedValue = baseAnnualRent * Math.pow(1 + rentGrowth, year);
       cell.value = calculatedValue;
-      
-      // THEN add formula for live updates (this overrides the value but Excel will calculate)
-      // Only add formula if we have valid cell references
-      if (baseAnnualRent > 0) {
-        cell.value = { formula: `=${annualRentRef}*POWER(1+${rentGrowthRef},${year})` };
-      }
-      
       Object.assign(cell, this.formats.currency);
     }
 
-    // Per unit and per SF calculations with proper references - exactly like backend
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    // Per unit and per SF calculations with direct values
+    ws.getCell(`G${row}`).value = baseAnnualRent / totalUnits;
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    ws.getCell(`H${row}`).value = baseAnnualRent / totalSqft;
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     const rentalIncomeRow = row;
     row++;
 
-    // Other Income - HYBRID approach
+    // Other Income - USE CALCULATED VALUES ONLY
     const otherIncomeRate = 0.05;
     ws.getCell(`A${row}`).value = 'Other Income (5% of Gross Rent)';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
     
     for (let year = 0; year < 5; year++) {
-      const colLetter = String.fromCharCode(66 + year);
-      const cell = ws.getCell(`${colLetter}${row}`);
-      
-      // GUARANTEED VALUE: Calculate directly
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
       const grossRentalIncome = baseAnnualRent * Math.pow(1 + rentGrowth, year);
       const calculatedValue = grossRentalIncome * otherIncomeRate;
       cell.value = calculatedValue;
-      
-      // THEN add formula for live updates
-      if (baseAnnualRent > 0) {
-        cell.value = { formula: `=${colLetter}${rentalIncomeRow}*${otherIncomeRate}` };
-      }
-      
       Object.assign(cell, this.formats.currency);
     }
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    ws.getCell(`G${row}`).value = (baseAnnualRent * otherIncomeRate) / totalUnits;
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    ws.getCell(`H${row}`).value = (baseAnnualRent * otherIncomeRate) / totalSqft;
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     const otherIncomeRow = row;
     row++;
 
-    // Gross Income Total - exactly like backend
+    // Gross Income Total - USE CALCULATED VALUES ONLY
     ws.getCell(`A${row}`).value = 'TOTAL GROSS INCOME';
     Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
     
     for (let year = 0; year < 5; year++) {
-      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
-      const cell = ws.getCell(`${colLetter}${row}`);
-      cell.value = { formula: `=SUM(${colLetter}${rentalIncomeRow}:${colLetter}${otherIncomeRow})` };
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
+      const grossRentalIncome = baseAnnualRent * Math.pow(1 + rentGrowth, year);
+      const otherIncome = grossRentalIncome * otherIncomeRate;
+      const calculatedValue = grossRentalIncome + otherIncome;
+      cell.value = calculatedValue;
       Object.assign(cell, this.formats.currencyBold);
     }
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    ws.getCell(`G${row}`).value = (baseAnnualRent * (1 + otherIncomeRate)) / totalUnits;
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    ws.getCell(`H${row}`).value = (baseAnnualRent * (1 + otherIncomeRate)) / totalSqft;
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     const totalGrossIncomeRow = row; // Store this row reference
     // Store gross income row for cross-sheet reference
@@ -800,36 +788,44 @@ export class ClientExcelGenerator {
     Object.assign(expensesHeaderCell, this.formats.sectionHeaderCosts);
     row++;
 
-    // Vacancy & Credit Loss - Use local cell reference - exactly like backend
+    // Vacancy & Credit Loss - USE CALCULATED VALUES ONLY
     ws.getCell(`A${row}`).value = 'Vacancy & Credit Loss';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
     
     for (let year = 0; year < 5; year++) {
-      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
-      const cell = ws.getCell(`${colLetter}${row}`);
-      cell.value = { formula: `=${colLetter}${totalGrossIncomeRow}*${vacancyRateRef}` };
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
+      const grossRentalIncome = baseAnnualRent * Math.pow(1 + rentGrowth, year);
+      const otherIncome = grossRentalIncome * otherIncomeRate;
+      const totalGrossIncome = grossRentalIncome + otherIncome;
+      const calculatedValue = totalGrossIncome * 0.05; // 5% vacancy rate
+      cell.value = calculatedValue;
       Object.assign(cell, this.formats.currency);
     }
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    ws.getCell(`G${row}`).value = (baseAnnualRent * (1 + otherIncomeRate) * 0.05) / totalUnits;
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    ws.getCell(`H${row}`).value = (baseAnnualRent * (1 + otherIncomeRate) * 0.05) / totalSqft;
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     const vacancyLossRow = row;
     row++;
 
-    // Effective Gross Income - exactly like backend
+    // Effective Gross Income - USE CALCULATED VALUES ONLY
     ws.getCell(`A${row}`).value = 'EFFECTIVE GROSS INCOME';
     Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
     
     for (let year = 0; year < 5; year++) {
-      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
-      const cell = ws.getCell(`${colLetter}${row}`);
-      cell.value = { formula: `=${colLetter}${totalGrossIncomeRow}-${colLetter}${vacancyLossRow}` };
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
+      const grossRentalIncome = baseAnnualRent * Math.pow(1 + rentGrowth, year);
+      const otherIncome = grossRentalIncome * otherIncomeRate;
+      const totalGrossIncome = grossRentalIncome + otherIncome;
+      const vacancyLoss = totalGrossIncome * 0.05;
+      const calculatedValue = totalGrossIncome - vacancyLoss;
+      cell.value = calculatedValue;
       Object.assign(cell, this.formats.currencyBold);
     }
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    const egiValue = baseAnnualRent * (1 + otherIncomeRate) * 0.95; // After vacancy
+    ws.getCell(`G${row}`).value = egiValue / totalUnits;
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    ws.getCell(`H${row}`).value = egiValue / totalSqft;
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     const egiRow = row; // Store the EGI row reference
     row += 2;

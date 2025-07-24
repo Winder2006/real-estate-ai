@@ -1,8 +1,20 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
   "framework": "create-react-app",
-  "buildCommand": "CI=false NODE_OPTIONS='--max-old-space-size=4096' npm run build",
-  "env": {
-    "NODE_OPTIONS": "--max-old-space-size=4096",
-    "CI": "false"
-  }
+  "functions": {
+    "api/export-excel.py": {
+      "runtime": "python3.9"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 } 

@@ -1,86 +1,65 @@
-import { ClientExcelGenerator } from './clientExcelGenerator';
+import { PropertyData, AnalysisResults, InvestmentAssumptions } from '../types';
 
-interface PropertyData {
-  address: string;
-  price: number;
-  beds: number;
-  baths: number;
-  sqft: number;
-  neighborhood: string;
-  propertyType: string;
-  zipcode: string;
-  totalUnits?: number;
-}
-
-interface AnalysisResults {
-  monthlyRent: number;
-  monthlyPayment: number;
-  monthlyCashFlow: number;
-  capRate: number;
-  cashOnCash: number;
-  breakEvenRent: number;
-  rentToPrice: number;
-  totalROI: number;
-  paybackPeriod: number;
-  annualNOI?: number;
-}
-
-interface InvestmentAssumptions {
-  downPaymentPct: number;
-  interestRate: number;
-  loanTerm: number;
-  propertyTaxRate: number;
-  insuranceRate: number;
-  maintenanceRate: number;
-  capitalReservesRate: number;
-  vacancyRate: number;
-  closingCostsPct: number;
-}
-
-export const downloadExcelReport = async (
+export const exportToExcel = async (
   propertyData: PropertyData,
   analysisResults: AnalysisResults,
   assumptions: InvestmentAssumptions,
-  projectName?: string
+  projectName: string
 ): Promise<void> => {
   try {
-    // Create project name if not provided
-    const finalProjectName = projectName || `Investment Analysis - ${propertyData.address}`;
-
-    // Generate Excel file using client-side generator
-    const generator = new ClientExcelGenerator();
-    const buffer = await generator.generateProForma(
-      propertyData,
-      analysisResults,
-      assumptions,
-      finalProjectName
-    );
-
-    // Create blob from buffer
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    // Call the Vercel Python serverless function (uses exact same backend code)
+    const response = await fetch('/api/export-excel', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        address: propertyData.address,
+        price: propertyData.price,
+        beds: propertyData.beds,
+        baths: propertyData.baths,
+        sqft: propertyData.sqft,
+        neighborhood: propertyData.neighborhood,
+        propertyType: propertyData.propertyType,
+        zipcode: propertyData.zipcode,
+        totalUnits: propertyData.totalUnits,
+        results: analysisResults,
+        assumptions: assumptions,
+        projectName: projectName
+      }),
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // Get the Excel file as a blob
+    const blob = await response.blob();
     
     // Create download link
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     
-    // Generate filename
-    const addressClean = propertyData.address.replace(/[^a-zA-Z0-9]/g, '_');
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
-    link.download = `Real_Estate_Pro_Forma_${addressClean}_${timestamp}.xlsx`;
+    // Extract filename from response headers or create default
+    const contentDisposition = response.headers.get('content-disposition');
+    let filename = 'Real_Estate_Pro_Forma.xlsx';
     
-    // Trigger download
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
-    
-    // Cleanup
-    link.remove();
+    document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
     
   } catch (error) {
-    console.error('Excel export failed:', error);
+    console.error('Error exporting Excel:', error);
     throw error;
   }
 };
