@@ -546,30 +546,60 @@ export class ClientExcelGenerator {
     Object.assign(dateCell, this.formats.columnHeader);
     row += 2;
 
-    // Store assumption cell references for formulas - reference Executive Summary sheet
-    const cellRefs: { [key: string]: string } = {
-      'purchase_price': "'Executive Summary'!D5",
-      'total_units': "'Executive Summary'!D7",
-      'total_sqft': "'Executive Summary'!D6",
-      'annual_rent': "'Executive Summary'!G5",
-      'rent_growth_rate': "'Executive Summary'!G6",
-      'vacancy_rate': "'Executive Summary'!G7",
-      'property_mgmt': "'Executive Summary'!G8",
-      'maintenance_rate': "'Executive Summary'!G9",
-      'capital_reserves_rate': "'Executive Summary'!G10",
-      'utilities_rate': "'Executive Summary'!G11",
-      'legal_rate': "'Executive Summary'!G12",
-      'other_expenses_rate': "'Executive Summary'!G13",
-      'property_tax_rate': "'Executive Summary'!G14",
-      'insurance_rate': "'Executive Summary'!G15",
-      'inflation_rate': "'Executive Summary'!G16",
-      'down_payment': "'Executive Summary'!G17",
-      'interest_rate': "'Executive Summary'!G18",
-      'loan_term_years': "'Executive Summary'!G19",
-      'closing_costs': "'Executive Summary'!G20",
-      'exit_cap_rate': "'Executive Summary'!G21",
-      'selling_costs': "'Executive Summary'!G22"
-    };
+    // Pre-calculate all values for the 5-year pro forma to ensure data is populated
+    const purchasePrice = propertyData.price;
+    const downPaymentPct = assumptions.downPaymentPct / 100;
+    const interestRate = assumptions.interestRate / 100;
+    const loanTerm = assumptions.loanTerm;
+    const totalUnits = propertyData.totalUnits || 1;
+    const totalSqft = propertyData.sqft;
+    const baseAnnualRent = results.monthlyRent * 12;
+    const rentGrowth = 0.03;
+
+    const yearlyData = [];
+    for (let year = 1; year <= 5; year++) {
+      const grossRentalIncome = baseAnnualRent * Math.pow(1.03, year - 1);
+      const otherIncome = grossRentalIncome * 0.05;
+      const totalGrossIncome = grossRentalIncome + otherIncome;
+      const vacancyLoss = totalGrossIncome * 0.05;
+      const effectiveGrossIncome = totalGrossIncome - vacancyLoss;
+
+      const propertyManagement = effectiveGrossIncome * 0.08;
+      const propertyTaxes = purchasePrice * (assumptions.propertyTaxRate / 100) * Math.pow(1.025, year - 1);
+      const insurance = purchasePrice * (assumptions.insuranceRate / 100) * Math.pow(1.025, year - 1);
+      const maintenanceRepairs = effectiveGrossIncome * (assumptions.maintenanceRate / 100);
+      const capitalReserves = effectiveGrossIncome * (assumptions.capitalReservesRate / 100);
+      const utilities = effectiveGrossIncome * 0.002;
+      const legal = effectiveGrossIncome * 0.005;
+      const otherExpenses = effectiveGrossIncome * 0.02;
+
+      const totalOperatingExpenses = propertyManagement + propertyTaxes + insurance +
+                                   maintenanceRepairs + capitalReserves + utilities + legal + otherExpenses;
+
+      const noi = effectiveGrossIncome - totalOperatingExpenses;
+      const debtService = results.monthlyPayment * 12;
+      const cashFlowBeforeTax = noi - debtService;
+
+      yearlyData.push({
+        grossRentalIncome,
+        otherIncome,
+        totalGrossIncome,
+        vacancyLoss,
+        effectiveGrossIncome,
+        propertyManagement,
+        propertyTaxes,
+        insurance,
+        maintenanceRepairs,
+        capitalReserves,
+        utilities,
+        legal,
+        otherExpenses,
+        totalOperatingExpenses,
+        noi,
+        debtService,
+        cashFlowBeforeTax
+      });
+    }
 
     // Main pro forma starts at row 4
     row = 4;
@@ -597,19 +627,19 @@ export class ClientExcelGenerator {
     Object.assign(grossRentalCell, this.formats.sectionHeaderRevenue);
     row++;
 
-    // Rental Income - Use Excel formulas referencing assumption cells
+    // Rental Income - Use calculated values to ensure data is present
     ws.getCell(`A${row}`).value = 'Gross Rental Income';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
 
     for (let year = 1; year <= 5; year++) {
       const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=${cellRefs['annual_rent']}*POWER(1+${cellRefs['rent_growth_rate']},${year-1})` };
+      cell.value = yearlyData[year - 1].grossRentalIncome;
       Object.assign(cell, this.formats.currency);
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     
     const rentalIncomeRow = row;
@@ -621,13 +651,13 @@ export class ClientExcelGenerator {
 
     for (let year = 1; year <= 5; year++) {
       const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=${String.fromCharCode(65 + year)}${rentalIncomeRow}*0.05` };
+      cell.value = yearlyData[year - 1].otherIncome;
       Object.assign(cell, this.formats.currency);
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     
     const otherIncomeRow = row;
@@ -643,9 +673,9 @@ export class ClientExcelGenerator {
       Object.assign(cell, this.formats.currencyBold);
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
     
     const totalGrossIncomeRow = row;
@@ -657,14 +687,14 @@ export class ClientExcelGenerator {
 
     for (let year = 1; year <= 5; year++) {
       const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=-${String.fromCharCode(65 + year)}${totalGrossIncomeRow}*${cellRefs['vacancy_rate']}` };
+      cell.value = -yearlyData[year - 1].vacancyLoss;
       Object.assign(cell, this.formats.currency);
       cell.font = { color: { argb: 'DC2626' } };
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     
     const vacancyRow = row;
@@ -686,9 +716,9 @@ export class ClientExcelGenerator {
       Object.assign(cell, this.formats.currencyBold);
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
     
     const egiRow = row;
@@ -701,41 +731,33 @@ export class ClientExcelGenerator {
     Object.assign(expensesHeaderCell, this.formats.sectionHeaderCosts);
     row++;
 
-    // Operating expenses - use Excel formulas
-    const expenses = [
-      ['Property Management', 'percentage', cellRefs['property_mgmt'], 'egi'],
-      ['Property Taxes', 'fixed_rate', cellRefs['property_tax_rate'], 'purchase_price'],
-      ['Insurance', 'fixed_rate', cellRefs['insurance_rate'], 'purchase_price'],
-      ['Maintenance & Repairs', 'percentage', cellRefs['maintenance_rate'], 'egi'],
-      ['Capital Reserves', 'percentage', cellRefs['capital_reserves_rate'], 'egi'],
-      ['Utilities', 'percentage', cellRefs['utilities_rate'], 'egi'],
-      ['Legal & Professional', 'percentage', cellRefs['legal_rate'], 'egi'],
-      ['Other Operating Expenses', 'percentage', cellRefs['other_expenses_rate'], 'egi']
+    // Operating expenses - use calculated values
+    const expenseItems = [
+      ['Property Management', 'propertyManagement'],
+      ['Property Taxes', 'propertyTaxes'],
+      ['Insurance', 'insurance'],
+      ['Maintenance & Repairs', 'maintenanceRepairs'],
+      ['Capital Reserves', 'capitalReserves'],
+      ['Utilities', 'utilities'],
+      ['Legal & Professional', 'legal'],
+      ['Other Operating Expenses', 'otherExpenses']
     ];
 
     const expenseStartRow = row;
 
-    expenses.forEach(([expenseName, calcType, rateRef, base]) => {
+    expenseItems.forEach(([expenseName, dataKey]) => {
       ws.getCell(`A${row}`).value = expenseName;
       Object.assign(ws.getCell(`A${row}`), this.formats.text);
 
-      if (calcType === 'percentage') {
-        for (let year = 1; year <= 5; year++) {
-          const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-          cell.value = { formula: `=${String.fromCharCode(65 + year)}${egiRow}*${rateRef}` };
-          Object.assign(cell, this.formats.currency);
-        }
-      } else if (calcType === 'fixed_rate') {
-        for (let year = 1; year <= 5; year++) {
-          const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-          cell.value = { formula: `=${cellRefs['purchase_price']}*${rateRef}*POWER(1+${cellRefs['inflation_rate']},${year-1})` };
-          Object.assign(cell, this.formats.currency);
-        }
+      for (let year = 1; year <= 5; year++) {
+        const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
+        cell.value = yearlyData[year - 1][dataKey as keyof typeof yearlyData[0]];
+        Object.assign(cell, this.formats.currency);
       }
 
-      ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+      ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
       Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-      ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+      ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
       Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
       
       row++;
@@ -751,9 +773,9 @@ export class ClientExcelGenerator {
       Object.assign(cell, this.formats.currencyBold);
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
     
     const totalExpensesRow = row;
@@ -776,31 +798,27 @@ export class ClientExcelGenerator {
       cell.font = { bold: true, color: { argb: this.colors.equity } };
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
     
     const noiRow = row;
     row += 2;
 
-    // DEBT SERVICE - Use Excel PMT formula like backend
+    // DEBT SERVICE - Use calculated value to ensure it's populated
     ws.getCell(`A${row}`).value = 'DEBT SERVICE';
     Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
 
     for (let year = 1; year <= 5; year++) {
       const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      // Use PMT formula: =PMT(rate, nper, pv) where pv is loan amount
-      const loanAmount = `(${cellRefs['purchase_price']}*(1-${cellRefs['down_payment']}))`;
-      const monthlyRate = `(${cellRefs['interest_rate']}/12)`;
-      const numPayments = `(${cellRefs['loan_term_years']}*12)`;
-      cell.value = { formula: `=-PMT(${monthlyRate},${numPayments},${loanAmount})*12` };
+      cell.value = yearlyData[year - 1].debtService;
       Object.assign(cell, this.formats.currency);
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     
     const debtServiceRow = row;
@@ -819,9 +837,9 @@ export class ClientExcelGenerator {
       cell.font = { bold: true, color: { argb: this.colors.revenue } };
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
     
     const cashFlowRow = row;
@@ -838,7 +856,8 @@ export class ClientExcelGenerator {
     ws.getCell(`A${row}`).value = 'Initial Investment';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
 
-    ws.getCell(`B${row}`).value = { formula: `=-(${cellRefs['purchase_price']}*${cellRefs['down_payment']}+${cellRefs['purchase_price']}*${cellRefs['closing_costs']})` };
+    const initialInvestment = -(purchasePrice * downPaymentPct + purchasePrice * 0.03);
+    ws.getCell(`B${row}`).value = initialInvestment;
     Object.assign(ws.getCell(`B${row}`), this.formats.currency);
 
     for (let year = 2; year <= 5; year++) {
@@ -865,7 +884,8 @@ export class ClientExcelGenerator {
       Object.assign(cell, this.formats.currency);
     }
 
-    ws.getCell(`F${row}`).value = { formula: `=F${noiRow}/${cellRefs['exit_cap_rate']}` };
+    const salePrice = yearlyData[4].noi / 0.06;
+    ws.getCell(`F${row}`).value = salePrice;
     Object.assign(ws.getCell(`F${row}`), this.formats.currency);
     
     const salePriceRow = row;
@@ -881,7 +901,8 @@ export class ClientExcelGenerator {
       Object.assign(cell, this.formats.currency);
     }
 
-    ws.getCell(`F${row}`).value = { formula: `=F${salePriceRow}*${cellRefs['selling_costs']}` };
+    const sellingCosts = salePrice * 0.07;
+    ws.getCell(`F${row}`).value = sellingCosts;
     Object.assign(ws.getCell(`F${row}`), this.formats.currency);
     
     const sellingCostsRow = row;
@@ -919,9 +940,9 @@ export class ClientExcelGenerator {
     Object.assign(ws.getCell(`F${row}`), this.formats.currencyBold);
     ws.getCell(`F${row}`).font = { bold: true, color: { argb: this.colors.revenue } };
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${cellRefs['total_units']}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${cellRefs['total_sqft']}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
 
     // Store pro forma row references for use in Executive Summary
