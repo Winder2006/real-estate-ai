@@ -2,6 +2,24 @@ import React, { useState } from 'react';
 import { Calculator, Building2, DollarSign, Calendar, FileSpreadsheet, Plus, Minus, Edit3 } from 'lucide-react';
 import { downloadExcelReport } from '../utils/excelExport';
 
+// Helper functions for number formatting
+const formatNumberWithCommas = (value: number): string => {
+  if (value === 0 || value === null || value === undefined) return '';
+  return value.toLocaleString();
+};
+
+const formatPercentage = (value: number): string => {
+  if (value === 0 || value === null || value === undefined) return '';
+  return value.toString();
+};
+
+const parseNumberFromString = (value: string): number => {
+  if (!value || value.trim() === '') return 0;
+  const cleaned = value.replace(/,/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 interface ProFormaData {
   // Project Information
   projectName: string;
@@ -305,9 +323,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Total Units</label>
           <input
-            type="number"
-            value={proFormaData.totalUnits}
-            onChange={(e) => updateData('totalUnits', parseInt(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.totalUnits)}
+            onChange={(e) => updateData('totalUnits', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -316,9 +334,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Total Square Footage</label>
           <input
-            type="number"
-            value={proFormaData.totalSqft}
-            onChange={(e) => updateData('totalSqft', parseInt(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.totalSqft)}
+            onChange={(e) => updateData('totalSqft', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -391,9 +409,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Land Price</label>
           <input
-            type="number"
-            value={proFormaData.landPrice}
-            onChange={(e) => updateData('landPrice', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.landPrice)}
+            onChange={(e) => updateData('landPrice', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -402,9 +420,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Acquisition Costs</label>
           <input
-            type="number"
-            value={proFormaData.acquisitionCosts}
-            onChange={(e) => updateData('acquisitionCosts', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.acquisitionCosts)}
+            onChange={(e) => updateData('acquisitionCosts', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -413,9 +431,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Hard Costs</label>
           <input
-            type="number"
-            value={proFormaData.hardCosts}
-            onChange={(e) => updateData('hardCosts', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.hardCosts)}
+            onChange={(e) => updateData('hardCosts', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -424,9 +442,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Soft Costs</label>
           <input
-            type="number"
-            value={proFormaData.softCosts}
-            onChange={(e) => updateData('softCosts', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.softCosts)}
+            onChange={(e) => updateData('softCosts', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -435,9 +453,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Contingency</label>
           <input
-            type="number"
-            value={proFormaData.contingency}
-            onChange={(e) => updateData('contingency', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.contingency)}
+            onChange={(e) => updateData('contingency', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -460,9 +478,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Average Sale Price per Unit</label>
           <input
-            type="number"
-            value={proFormaData.avgSalePrice}
-            onChange={(e) => updateData('avgSalePrice', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.avgSalePrice)}
+            onChange={(e) => updateData('avgSalePrice', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -471,9 +489,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Average Rent per Unit (Monthly)</label>
           <input
-            type="number"
-            value={proFormaData.avgRent}
-            onChange={(e) => updateData('avgRent', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.avgRent)}
+            onChange={(e) => updateData('avgRent', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -482,9 +500,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Commercial Rent (per sq ft/year)</label>
           <input
-            type="number"
-            value={proFormaData.commercialRent}
-            onChange={(e) => updateData('commercialRent', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.commercialRent)}
+            onChange={(e) => updateData('commercialRent', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -493,9 +511,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Marketing Costs</label>
           <input
-            type="number"
-            value={proFormaData.marketingCosts}
-            onChange={(e) => updateData('marketingCosts', parseFloat(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.marketingCosts)}
+            onChange={(e) => updateData('marketingCosts', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0"
           />
@@ -506,8 +524,8 @@ export default function ProFormaBuilder() {
           <input
             type="number"
             step="0.01"
-            value={proFormaData.salesCommissions}
-            onChange={(e) => updateData('salesCommissions', parseFloat(e.target.value) || 0)}
+            value={formatPercentage(proFormaData.salesCommissions)}
+            onChange={(e) => updateData('salesCommissions', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0.06"
           />
@@ -547,19 +565,19 @@ export default function ProFormaBuilder() {
               placeholder="Source name"
             />
             
-            <input
-              type="number"
-              value={item.amount}
-              onChange={(e) => updateCapitalStackItem(item.id, 'amount', parseFloat(e.target.value) || 0)}
-              className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              placeholder="Amount"
-            />
+                          <input
+                type="text"
+                value={formatNumberWithCommas(item.amount)}
+                onChange={(e) => updateCapitalStackItem(item.id, 'amount', parseNumberFromString(e.target.value))}
+                className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                placeholder="Amount"
+              />
             
             <input
               type="number"
               step="0.01"
-              value={item.percentage}
-              onChange={(e) => updateCapitalStackItem(item.id, 'percentage', parseFloat(e.target.value) || 0)}
+              value={formatPercentage(item.percentage)}
+              onChange={(e) => updateCapitalStackItem(item.id, 'percentage', parseNumberFromString(e.target.value))}
               className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               placeholder="%"
             />
@@ -589,8 +607,8 @@ export default function ProFormaBuilder() {
           <input
             type="number"
             step="0.01"
-            value={proFormaData.loanToValue}
-            onChange={(e) => updateData('loanToValue', parseFloat(e.target.value) || 0)}
+            value={formatPercentage(proFormaData.loanToValue)}
+            onChange={(e) => updateData('loanToValue', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0.75"
           />
@@ -601,8 +619,8 @@ export default function ProFormaBuilder() {
           <input
             type="number"
             step="0.001"
-            value={proFormaData.interestRate}
-            onChange={(e) => updateData('interestRate', parseFloat(e.target.value) || 0)}
+            value={formatPercentage(proFormaData.interestRate)}
+            onChange={(e) => updateData('interestRate', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="0.055"
           />
@@ -611,9 +629,9 @@ export default function ProFormaBuilder() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Loan Term (months)</label>
           <input
-            type="number"
-            value={proFormaData.loanTerm}
-            onChange={(e) => updateData('loanTerm', parseInt(e.target.value) || 0)}
+            type="text"
+            value={formatNumberWithCommas(proFormaData.loanTerm)}
+            onChange={(e) => updateData('loanTerm', parseNumberFromString(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             placeholder="24"
           />

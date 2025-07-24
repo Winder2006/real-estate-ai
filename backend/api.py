@@ -8,12 +8,23 @@ import io
 from datetime import datetime
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add parent directory to Python path to access utils
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(parent_dir)
+print(f"Added to Python path: {parent_dir}")
 
-from utils.ml_models import RentPredictor, PropertyPricePredictor
-from utils.data_loader import load_and_clean_sales_data, load_rental_data
-from utils.analysis import calculate_investment_metrics
+# Only import what we need for Excel export
 from utils.excel_generator import RealEstateExcelGenerator
+
+# Try to import ML models but don't fail if they're not available
+try:
+    from utils.ml_models import RentPredictor, PropertyPricePredictor
+    from utils.data_loader import load_and_clean_sales_data, load_rental_data
+    from utils.analysis import calculate_investment_metrics
+    ML_MODELS_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  ML models not available: {e}")
+    ML_MODELS_AVAILABLE = False
 import numpy_financial as npf
 
 app = Flask(__name__)
@@ -27,6 +38,12 @@ rental_data = None
 
 def load_models():
     global rent_predictor, price_predictor, comps_data, rental_data
+    print("Loading models...")
+    
+    if not ML_MODELS_AVAILABLE:
+        print("⚠️  ML models not available - Excel export will still work")
+        return
+    
     try:
         rent_predictor = RentPredictor()
         rent_predictor.load_model('models/rent_predictor.joblib')
