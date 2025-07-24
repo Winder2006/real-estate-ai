@@ -1,20 +1,28 @@
-from http.server import BaseHTTPRequestHandler
 import json
 import sys
 import os
+from http.server import BaseHTTPRequestHandler
 
 # Add the project root to Python path to import our modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.utils.excel_generator import RealEstateExcelGenerator
+try:
+    from backend.utils.excel_generator import RealEstateExcelGenerator
+except ImportError:
+    # Fallback if import fails
+    RealEstateExcelGenerator = None
+
 from datetime import datetime
-import io
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
+            if not RealEstateExcelGenerator:
+                self.send_error(500, "Excel generator not available")
+                return
+                
             # Get the request body
-            content_length = int(self.headers['Content-Length'])
+            content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data.decode('utf-8'))
             
@@ -58,6 +66,9 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
             self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
             self.send_header('Content-Length', str(len(excel_data)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'POST')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
             self.end_headers()
             
             # Send the Excel file
@@ -67,6 +78,15 @@ class handler(BaseHTTPRequestHandler):
             # Send error response
             self.send_response(500)
             self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             error_response = json.dumps({'error': str(e)})
-            self.wfile.write(error_response.encode('utf-8')) 
+            self.wfile.write(error_response.encode('utf-8'))
+            
+    def do_OPTIONS(self):
+        # Handle CORS preflight
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers() 
