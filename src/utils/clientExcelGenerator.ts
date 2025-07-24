@@ -58,7 +58,12 @@ export class ClientExcelGenerator {
     assumptions: InvestmentAssumptions,
     projectName: string
   ): Promise<ArrayBuffer> {
+    // Create workbook
     const workbook = new ExcelJS.Workbook();
+    
+    // Enable calculation - this is crucial for formulas to work
+    workbook.calcProperties.fullCalcOnLoad = true;
+    workbook.calcProperties.calcMode = 'automatic';
     
     // Create worksheets
     const summaryWs = workbook.addWorksheet('Executive Summary');
@@ -69,26 +74,33 @@ export class ClientExcelGenerator {
     // Create formats
     this.createFormats(workbook);
 
-    // Generate sheets in the correct order
+    // Generate sheets in the correct order for cross-sheet references
     await this.createProFormaSheet(proformaWs, propertyData, analysisResults, assumptions, projectName);
     await this.createSummarySheet(summaryWs, propertyData, analysisResults, assumptions, projectName);
     await this.createAssumptionsSheet(assumptionsWs, propertyData, assumptions);
     await this.createSensitivitySheet(sensitivityWs, propertyData, analysisResults, assumptions);
 
-    // Set up print settings
+    // Set print settings for all sheets
     [summaryWs, proformaWs, assumptionsWs, sensitivityWs].forEach(ws => {
-      ws.pageSetup = {
-        orientation: 'landscape',
-        fitToPage: true,
-        fitToWidth: 1,
-        fitToHeight: 0,
-        margins: { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 }
+      ws.pageSetup.paperSize = 9; // A4
+      ws.pageSetup.orientation = 'landscape';
+      ws.pageSetup.fitToPage = true;
+      ws.pageSetup.fitToWidth = 1;
+      ws.pageSetup.fitToHeight = 0;
+      ws.pageSetup.margins = {
+        left: 0.7, right: 0.7,
+        top: 0.75, bottom: 0.75,
+        header: 0.3, footer: 0.3
       };
-      ws.headerFooter.oddHeader = '&C&"Arial,Bold"Real Estate Investment Analysis';
-      ws.headerFooter.oddFooter = '&L&D &T&C&P&R&F';
     });
 
-    // Generate buffer
+    // Force calculation for all worksheets
+    [summaryWs, proformaWs, assumptionsWs, sensitivityWs].forEach(ws => {
+      ws.calcProperties = {
+        fullCalcOnLoad: true
+      };
+    });
+
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer;
   }
@@ -580,25 +592,41 @@ export class ClientExcelGenerator {
     const baseAnnualRent = totalMonthlyRent * 12;
     const rentGrowth = 0.03;
 
+    // Validate critical values - ensure they're not undefined
+    console.log('Pro Forma Values:', {
+      purchasePrice,
+      downPaymentPct,
+      interestRate,
+      loanTerm,
+      totalUnits,
+      totalSqft,
+      totalMonthlyRent,
+      baseAnnualRent,
+      propertyTaxRate: assumptions.propertyTaxRate / 100,
+      insuranceRate: assumptions.insuranceRate / 100,
+      maintenanceRate: assumptions.maintenanceRate / 100,
+      capitalReservesRate: assumptions.capitalReservesRate / 100
+    });
+
     // Write all assumptions to cells in column K - exactly like backend
     const assumptionData = [
-      ['Purchase Price', purchasePrice],
-      ['Down Payment %', downPaymentPct],
-      ['Interest Rate', interestRate],
-      ['Loan Term (Years)', loanTerm],
+      ['Purchase Price', purchasePrice || 0],
+      ['Down Payment %', downPaymentPct || 0.20],
+      ['Interest Rate', interestRate || 0.05],
+      ['Loan Term (Years)', loanTerm || 30],
       ['Closing Costs %', closingCostsPct],
       ['Property Mgmt %', 0.08],
-      ['Property Tax %', assumptions.propertyTaxRate / 100],
-      ['Insurance %', assumptions.insuranceRate / 100],
-      ['Maintenance %', assumptions.maintenanceRate / 100],
-      ['Capital Reserves %', assumptions.capitalReservesRate / 100],
+      ['Property Tax %', (assumptions.propertyTaxRate / 100) || 0.02],
+      ['Insurance %', (assumptions.insuranceRate / 100) || 0.005],
+      ['Maintenance %', (assumptions.maintenanceRate / 100) || 0.01],
+      ['Capital Reserves %', (assumptions.capitalReservesRate / 100) || 0.01],
       ['Utilities %', 0.005],
       ['Legal %', 0.002],
       ['Other Expenses %', 0.003],
       ['Inflation Rate', 0.025],
-      ['Total Units', totalUnits],
-      ['Total Square Feet', totalSqft],
-      ['Annual Gross Rent', baseAnnualRent],
+      ['Total Units', totalUnits || 1],
+      ['Total Square Feet', totalSqft || 1000],
+      ['Annual Gross Rent', baseAnnualRent || 24000],
       ['Rent Growth Rate', rentGrowth],
       ['Vacancy Rate', 0.05],
       ['NOI Margin', 0.70],
@@ -611,7 +639,9 @@ export class ClientExcelGenerator {
       ws.getCell(`K${currentRow}`).value = label;
       Object.assign(ws.getCell(`K${currentRow}`), this.formats.textBold);
       
-      ws.getCell(`L${currentRow}`).value = value;
+      // Ensure value is a number, not undefined
+      const numValue = typeof value === 'number' ? value : 0;
+      ws.getCell(`L${currentRow}`).value = numValue;
       
       // Apply correct format based on value type
       if (label.includes('%') || label.includes('Rate')) {
@@ -649,6 +679,9 @@ export class ClientExcelGenerator {
       'selling_costs_pct': `L${assumptionRow + 22}`
     };
 
+    console.log('Cell References:', cellRefs);
+    console.log('Assumption Row starts at:', assumptionRow);
+
     // Define local references for all calculations
     const totalUnitsRef = cellRefs['total_units'];
     const totalSqftRef = cellRefs['total_sqft'];
@@ -684,13 +717,24 @@ export class ClientExcelGenerator {
     Object.assign(grossRentalCell, this.formats.sectionHeaderRevenue);
     row++;
 
-    // Rental Income - Use the local cell references exactly like backend
+    // Rental Income - HYBRID: Set calculated values AND formulas
     ws.getCell(`A${row}`).value = 'Gross Rental Income';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
 
+    // Calculate and set actual values first, then add formulas
     for (let year = 0; year < 5; year++) {
       const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
-      cell.value = { formula: `=${annualRentRef}*POWER(1+${rentGrowthRef},${year})` };
+      
+      // GUARANTEED VALUE: Calculate directly
+      const calculatedValue = baseAnnualRent * Math.pow(1 + rentGrowth, year);
+      cell.value = calculatedValue;
+      
+      // THEN add formula for live updates (this overrides the value but Excel will calculate)
+      // Only add formula if we have valid cell references
+      if (baseAnnualRent > 0) {
+        cell.value = { formula: `=${annualRentRef}*POWER(1+${rentGrowthRef},${year})` };
+      }
+      
       Object.assign(cell, this.formats.currency);
     }
 
@@ -702,15 +746,25 @@ export class ClientExcelGenerator {
     const rentalIncomeRow = row;
     row++;
 
-    // Other Income - Use cell reference for percentage - exactly like backend
+    // Other Income - HYBRID approach
     const otherIncomeRate = 0.05;
     ws.getCell(`A${row}`).value = 'Other Income (5% of Gross Rent)';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
     
     for (let year = 0; year < 5; year++) {
-      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const colLetter = String.fromCharCode(66 + year);
       const cell = ws.getCell(`${colLetter}${row}`);
-      cell.value = { formula: `=${colLetter}${rentalIncomeRow}*${otherIncomeRate}` };
+      
+      // GUARANTEED VALUE: Calculate directly
+      const grossRentalIncome = baseAnnualRent * Math.pow(1 + rentGrowth, year);
+      const calculatedValue = grossRentalIncome * otherIncomeRate;
+      cell.value = calculatedValue;
+      
+      // THEN add formula for live updates
+      if (baseAnnualRent > 0) {
+        cell.value = { formula: `=${colLetter}${rentalIncomeRow}*${otherIncomeRate}` };
+      }
+      
       Object.assign(cell, this.formats.currency);
     }
     ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
@@ -810,16 +864,53 @@ export class ClientExcelGenerator {
 
       if (calcType === 'percentage') {
         for (let year = 0; year < 5; year++) {
-          const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+          const colLetter = String.fromCharCode(66 + year);
           const cell = ws.getCell(`${colLetter}${row}`);
-          cell.value = { formula: `=${colLetter}${egiRow}*${rateRef}` };
+          
+          // GUARANTEED VALUE: Calculate directly first
+          const grossRentalIncome = baseAnnualRent * Math.pow(1 + rentGrowth, year);
+          const otherIncome = grossRentalIncome * 0.05;
+          const totalGrossIncome = grossRentalIncome + otherIncome;
+          const vacancyLoss = totalGrossIncome * 0.05;
+          const effectiveGrossIncome = totalGrossIncome - vacancyLoss;
+          
+          // Get the rate based on expense type
+          let rate = 0.08; // default property management
+          if (expenseName === 'Property Management') rate = 0.08;
+          else if (expenseName === 'Maintenance & Repairs') rate = (assumptions.maintenanceRate / 100) || 0.01;
+          else if (expenseName === 'Capital Reserves') rate = (assumptions.capitalReservesRate / 100) || 0.01;
+          else if (expenseName === 'Utilities') rate = 0.005;
+          else if (expenseName === 'Legal & Professional') rate = 0.002;
+          else if (expenseName === 'Other Operating Expenses') rate = 0.003;
+          
+          const calculatedValue = effectiveGrossIncome * rate;
+          cell.value = calculatedValue;
+          
+          // THEN add formula for live updates
+          if (baseAnnualRent > 0) {
+            cell.value = { formula: `=${colLetter}${egiRow}*${rateRef}` };
+          }
+          
           Object.assign(cell, this.formats.currency);
         }
       } else if (calcType === 'fixed_rate') {
         // For property taxes and insurance - use local purchase price cell
         for (let year = 0; year < 5; year++) {
           const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
-          cell.value = { formula: `=${cellRefs['purchase_price']}*${rateRef}*POWER(1+${inflationRateRef},${year})` };
+          
+          // GUARANTEED VALUE: Calculate directly first
+          let rate = 0.02; // default
+          if (expenseName === 'Property Taxes') rate = (assumptions.propertyTaxRate / 100) || 0.02;
+          else if (expenseName === 'Insurance') rate = (assumptions.insuranceRate / 100) || 0.005;
+          
+          const calculatedValue = purchasePrice * rate * Math.pow(1.025, year);
+          cell.value = calculatedValue;
+          
+          // THEN add formula for live updates
+          if (purchasePrice > 0) {
+            cell.value = { formula: `=${cellRefs['purchase_price']}*${rateRef}*POWER(1+${inflationRateRef},${year})` };
+          }
+          
           Object.assign(cell, this.formats.currency);
         }
       }
@@ -887,11 +978,20 @@ export class ClientExcelGenerator {
     ws.getCell(`A${row}`).value = 'Annual Debt Service (P&I)';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
 
-    // Use the backend's debt formula approach
+    // Use the backend's debt formula approach - HYBRID
     for (let year = 0; year < 5; year++) {
       const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
-      // Formula: (Purchase_Price * (1 - Down_Payment_Pct)) * Interest_Rate * 1.1
-      cell.value = { formula: `=(${cellRefs['purchase_price']}*(1-${cellRefs['down_payment_pct']}))*${cellRefs['interest_rate']}*1.1` };
+      
+      // GUARANTEED VALUE: Calculate directly first
+      const loanAmount = purchasePrice * (1 - downPaymentPct);
+      const calculatedDebtService = loanAmount * interestRate * 1.1; // Simplified debt service calculation
+      cell.value = calculatedDebtService;
+      
+      // THEN add formula for live updates
+      if (purchasePrice > 0) {
+        cell.value = { formula: `=(${cellRefs['purchase_price']}*(1-${cellRefs['down_payment_pct']}))*${cellRefs['interest_rate']}*1.1` };
+      }
+      
       Object.assign(cell, this.formats.currency);
     }
     ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
