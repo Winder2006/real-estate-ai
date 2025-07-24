@@ -481,11 +481,11 @@ export class ClientExcelGenerator {
 
     // Reference the Pro Forma Analysis sheet for all calculations using stored row numbers
     const financialItems = [
-      ['Gross Rental Income', `='Pro Forma Analysis'!B${this.proformaRows.grossIncome}/12`, `='Pro Forma Analysis'!B${this.proformaRows.grossIncome}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.grossIncome}:F${this.proformaRows.grossIncome})`],
-      ['Total Operating Expenses', `='Pro Forma Analysis'!B${this.proformaRows.totalExpenses}/12`, `='Pro Forma Analysis'!B${this.proformaRows.totalExpenses}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.totalExpenses}:F${this.proformaRows.totalExpenses})`],
+      ['Gross Rental Income', `='Pro Forma Analysis'!B${this.proformaRows.gross_income}/12`, `='Pro Forma Analysis'!B${this.proformaRows.gross_income}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.gross_income}:F${this.proformaRows.gross_income})`],
+      ['Total Operating Expenses', `='Pro Forma Analysis'!B${this.proformaRows.total_expenses}/12`, `='Pro Forma Analysis'!B${this.proformaRows.total_expenses}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.total_expenses}:F${this.proformaRows.total_expenses})`],
       ['Net Operating Income', `='Pro Forma Analysis'!B${this.proformaRows.noi}/12`, `='Pro Forma Analysis'!B${this.proformaRows.noi}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.noi}:F${this.proformaRows.noi})`],
-      ['Debt Service', `='Pro Forma Analysis'!B${this.proformaRows.debtService}/12`, `='Pro Forma Analysis'!B${this.proformaRows.debtService}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.debtService}:F${this.proformaRows.debtService})`],
-      ['Before-Tax Cash Flow (Operations)', `='Pro Forma Analysis'!B${this.proformaRows.cashFlow}/12`, `='Pro Forma Analysis'!B${this.proformaRows.cashFlow}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.cashFlow}:F${this.proformaRows.cashFlow})`]
+      ['Debt Service', `='Pro Forma Analysis'!B${this.proformaRows.debt_service}/12`, `='Pro Forma Analysis'!B${this.proformaRows.debt_service}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.debt_service}:F${this.proformaRows.debt_service})`],
+      ['Before-Tax Cash Flow (Operations)', `='Pro Forma Analysis'!B${this.proformaRows.before_tax_cash_flow}/12`, `='Pro Forma Analysis'!B${this.proformaRows.before_tax_cash_flow}`, `=SUM('Pro Forma Analysis'!B${this.proformaRows.before_tax_cash_flow}:F${this.proformaRows.before_tax_cash_flow})`]
     ];
 
     financialItems.forEach(([item, monthlyFormula, annualFormula, fiveYearFormula]) => {
@@ -517,21 +517,28 @@ export class ClientExcelGenerator {
     assumptions: InvestmentAssumptions,
     projectName: string
   ) {
-    // Set column widths for optimal display
-    ws.getColumn('A').width = 35;   // Line items
+    // Initialize row references for cross-sheet use
+    this.proformaRows = {};
+    
+    // Set column widths exactly like backend
+    ws.getColumn('A').width = 35;   // Line items (wider for long descriptions)
     ws.getColumn('B').width = 14;   // Year 1
     ws.getColumn('C').width = 14;   // Year 2
     ws.getColumn('D').width = 14;   // Year 3
     ws.getColumn('E').width = 14;   // Year 4
     ws.getColumn('F').width = 14;   // Year 5
-    ws.getColumn('G').width = 16;   // Per unit
-    ws.getColumn('H').width = 16;   // Per SF
-    ws.getColumn('I').width = 8;    // Empty
-    ws.getColumn('J').width = 8;    // Empty
-    ws.getColumn('K').width = 25;   // Assumption labels
+    ws.getColumn('G').width = 16;   // Per unit column
+    ws.getColumn('H').width = 16;   // Per SF column
+    ws.getColumn('I').width = 8;    // Empty columns (narrow)
+    ws.getColumn('J').width = 8;    // Empty columns (narrow)
+    ws.getColumn('K').width = 25;   // Assumption labels (wider)
     ws.getColumn('L').width = 16;   // Assumption values
 
-    let row = 1;
+    // Define variables for use throughout the sheet - ensure they match the correct property data
+    const units = propertyData.totalUnits || 1;
+    const sqft = propertyData.sqft || 1000;
+
+    let row = 1; // Start at row 1 (0-indexed)
 
     // Title
     ws.mergeCells(`A${row}:H${row}`);
@@ -546,182 +553,190 @@ export class ClientExcelGenerator {
     Object.assign(dateCell, this.formats.columnHeader);
     row += 2;
 
-    // Pre-calculate all values for the 5-year pro forma to ensure data is populated
+    // SETUP LOCAL ASSUMPTIONS - Move to column K for cleaner layout
+    const assumptionCol = 11; // Column K (1-indexed for ExcelJS)
+    let assumptionRow = 2;   // Start at row 2 (1-indexed)
+    
+    ws.mergeCells(`K${assumptionRow}:L${assumptionRow}`);
+    const assumptionHeaderCell = ws.getCell(`K${assumptionRow}`);
+    assumptionHeaderCell.value = 'KEY ASSUMPTIONS (All values are editable)';
+    Object.assign(assumptionHeaderCell, this.formats.sectionHeaderTimeline);
+    assumptionRow++;
+
+    // Calculate assumption values from form data - exactly like backend
     const purchasePrice = propertyData.price;
     const downPaymentPct = assumptions.downPaymentPct / 100;
     const interestRate = assumptions.interestRate / 100;
-    const loanTerm = assumptions.loanTerm;
+    let loanTerm = assumptions.loanTerm;
+    if (loanTerm <= 36) {  // Convert construction to permanent
+      loanTerm = 30;
+    } else if (loanTerm > 100) {
+      loanTerm = loanTerm / 12;
+    }
+    const closingCostsPct = 0.03;
     const totalUnits = propertyData.totalUnits || 1;
     const totalSqft = propertyData.sqft;
-    const baseAnnualRent = results.monthlyRent * 12;
+    const totalMonthlyRent = results.monthlyRent;
+    const baseAnnualRent = totalMonthlyRent * 12;
     const rentGrowth = 0.03;
 
-    const yearlyData = [];
-    for (let year = 1; year <= 5; year++) {
-      const grossRentalIncome = baseAnnualRent * Math.pow(1.03, year - 1);
-      const otherIncome = grossRentalIncome * 0.05;
-      const totalGrossIncome = grossRentalIncome + otherIncome;
-      const vacancyLoss = totalGrossIncome * 0.05;
-      const effectiveGrossIncome = totalGrossIncome - vacancyLoss;
+    // Write all assumptions to cells in column K - exactly like backend
+    const assumptionData = [
+      ['Purchase Price', purchasePrice],
+      ['Down Payment %', downPaymentPct],
+      ['Interest Rate', interestRate],
+      ['Loan Term (Years)', loanTerm],
+      ['Closing Costs %', closingCostsPct],
+      ['Property Mgmt %', 0.08],
+      ['Property Tax %', assumptions.propertyTaxRate / 100],
+      ['Insurance %', assumptions.insuranceRate / 100],
+      ['Maintenance %', assumptions.maintenanceRate / 100],
+      ['Capital Reserves %', assumptions.capitalReservesRate / 100],
+      ['Utilities %', 0.005],
+      ['Legal %', 0.002],
+      ['Other Expenses %', 0.003],
+      ['Inflation Rate', 0.025],
+      ['Total Units', totalUnits],
+      ['Total Square Feet', totalSqft],
+      ['Annual Gross Rent', baseAnnualRent],
+      ['Rent Growth Rate', rentGrowth],
+      ['Vacancy Rate', 0.05],
+      ['NOI Margin', 0.70],
+      ['Exit Cap Rate', 0.06],
+      ['Selling Costs %', 0.07]
+    ];
 
-      const propertyManagement = effectiveGrossIncome * 0.08;
-      const propertyTaxes = purchasePrice * (assumptions.propertyTaxRate / 100) * Math.pow(1.025, year - 1);
-      const insurance = purchasePrice * (assumptions.insuranceRate / 100) * Math.pow(1.025, year - 1);
-      const maintenanceRepairs = effectiveGrossIncome * (assumptions.maintenanceRate / 100);
-      const capitalReserves = effectiveGrossIncome * (assumptions.capitalReservesRate / 100);
-      const utilities = effectiveGrossIncome * 0.002;
-      const legal = effectiveGrossIncome * 0.005;
-      const otherExpenses = effectiveGrossIncome * 0.02;
+    assumptionData.forEach(([label, value], index) => {
+      const currentRow = assumptionRow + index;
+      ws.getCell(`K${currentRow}`).value = label;
+      Object.assign(ws.getCell(`K${currentRow}`), this.formats.textBold);
+      
+      ws.getCell(`L${currentRow}`).value = value;
+      
+      // Apply correct format based on value type
+      if (label.includes('%') || label.includes('Rate')) {
+        Object.assign(ws.getCell(`L${currentRow}`), this.formats.inputPercentage);
+      } else if (label.includes('Price') || label.includes('Rent')) {
+        Object.assign(ws.getCell(`L${currentRow}`), this.formats.inputCurrency);
+      } else {
+        Object.assign(ws.getCell(`L${currentRow}`), this.formats.input);
+      }
+    });
 
-      const totalOperatingExpenses = propertyManagement + propertyTaxes + insurance +
-                                   maintenanceRepairs + capitalReserves + utilities + legal + otherExpenses;
+    // OVERRIDE cell_refs to use LOCAL cells in column L - exactly like backend
+    const cellRefs = {
+      'purchase_price': `L${assumptionRow + 1}`,
+      'down_payment_pct': `L${assumptionRow + 2}`,
+      'interest_rate': `L${assumptionRow + 3}`,
+      'loan_term': `L${assumptionRow + 4}`,
+      'closing_costs_pct': `L${assumptionRow + 5}`,
+      'property_mgmt_rate': `L${assumptionRow + 6}`,
+      'property_tax_rate': `L${assumptionRow + 7}`,
+      'insurance_rate': `L${assumptionRow + 8}`,
+      'maintenance_rate': `L${assumptionRow + 9}`,
+      'capital_reserves_rate': `L${assumptionRow + 10}`,
+      'utilities_rate': `L${assumptionRow + 11}`,
+      'legal_rate': `L${assumptionRow + 12}`,
+      'other_expenses_rate': `L${assumptionRow + 13}`,
+      'inflation_rate': `L${assumptionRow + 14}`,
+      'total_units': `L${assumptionRow + 15}`,
+      'total_sqft': `L${assumptionRow + 16}`,
+      'annual_rent': `L${assumptionRow + 17}`,
+      'rent_growth': `L${assumptionRow + 18}`,
+      'vacancy_rate': `L${assumptionRow + 19}`,
+      'noi_margin': `L${assumptionRow + 20}`,
+      'cap_rate_exit': `L${assumptionRow + 21}`,
+      'selling_costs_pct': `L${assumptionRow + 22}`
+    };
 
-      const noi = effectiveGrossIncome - totalOperatingExpenses;
-      const debtService = results.monthlyPayment * 12;
-      const cashFlowBeforeTax = noi - debtService;
+    // Define local references for all calculations
+    const totalUnitsRef = cellRefs['total_units'];
+    const totalSqftRef = cellRefs['total_sqft'];
+    const annualRentRef = cellRefs['annual_rent'];
+    const rentGrowthRef = cellRefs['rent_growth'];
+    const vacancyRateRef = cellRefs['vacancy_rate'];
 
-      yearlyData.push({
-        grossRentalIncome,
-        otherIncome,
-        totalGrossIncome,
-        vacancyLoss,
-        effectiveGrossIncome,
-        propertyManagement,
-        propertyTaxes,
-        insurance,
-        maintenanceRepairs,
-        capitalReserves,
-        utilities,
-        legal,
-        otherExpenses,
-        totalOperatingExpenses,
-        noi,
-        debtService,
-        cashFlowBeforeTax
-      });
-    }
+    row = 4; // Start the main pro forma at row 4 (1-indexed)
 
-    // Main pro forma starts at row 4
-    row = 4;
-
-    // Column headers
+    // Column headers for years - exactly like backend
     ws.getCell(`A${row}`).value = 'Line Item';
     Object.assign(ws.getCell(`A${row}`), this.formats.columnHeader);
-    
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = `Year ${year}`;
-      Object.assign(cell, this.formats.columnHeader);
-    }
-    
+    ws.getCell(`B${row}`).value = 'Year 1';
+    Object.assign(ws.getCell(`B${row}`), this.formats.columnHeader);
+    ws.getCell(`C${row}`).value = 'Year 2';
+    Object.assign(ws.getCell(`C${row}`), this.formats.columnHeader);
+    ws.getCell(`D${row}`).value = 'Year 3';
+    Object.assign(ws.getCell(`D${row}`), this.formats.columnHeader);
+    ws.getCell(`E${row}`).value = 'Year 4';
+    Object.assign(ws.getCell(`E${row}`), this.formats.columnHeader);
+    ws.getCell(`F${row}`).value = 'Year 5';
+    Object.assign(ws.getCell(`F${row}`), this.formats.columnHeader);
     ws.getCell(`G${row}`).value = '$ per Unit';
     Object.assign(ws.getCell(`G${row}`), this.formats.columnHeader);
     ws.getCell(`H${row}`).value = '$ per SF';
     Object.assign(ws.getCell(`H${row}`), this.formats.columnHeader);
     row++;
 
-    // GROSS RENTAL INCOME
+    // GROSS SALES / REVENUE
     ws.mergeCells(`A${row}:H${row}`);
     const grossRentalCell = ws.getCell(`A${row}`);
     grossRentalCell.value = 'GROSS RENTAL INCOME';
     Object.assign(grossRentalCell, this.formats.sectionHeaderRevenue);
     row++;
 
-    // Rental Income - Use calculated values to ensure data is present
+    // Rental Income - Use the local cell references exactly like backend
     ws.getCell(`A${row}`).value = 'Gross Rental Income';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
 
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = yearlyData[year - 1].grossRentalIncome;
+    for (let year = 0; year < 5; year++) {
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
+      cell.value = { formula: `=${annualRentRef}*POWER(1+${rentGrowthRef},${year})` };
       Object.assign(cell, this.formats.currency);
     }
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
+    // Per unit and per SF calculations with proper references - exactly like backend
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
-    
     const rentalIncomeRow = row;
     row++;
 
-    // Other Income
+    // Other Income - Use cell reference for percentage - exactly like backend
+    const otherIncomeRate = 0.05;
     ws.getCell(`A${row}`).value = 'Other Income (5% of Gross Rent)';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
-
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = yearlyData[year - 1].otherIncome;
+    
+    for (let year = 0; year < 5; year++) {
+      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const cell = ws.getCell(`${colLetter}${row}`);
+      cell.value = { formula: `=${colLetter}${rentalIncomeRow}*${otherIncomeRate}` };
       Object.assign(cell, this.formats.currency);
     }
-
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
-    
     const otherIncomeRow = row;
     row++;
 
-    // Total Gross Income
+    // Gross Income Total - exactly like backend
     ws.getCell(`A${row}`).value = 'TOTAL GROSS INCOME';
     Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
-
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=${String.fromCharCode(65 + year)}${rentalIncomeRow}+${String.fromCharCode(65 + year)}${otherIncomeRow}` };
+    
+    for (let year = 0; year < 5; year++) {
+      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const cell = ws.getCell(`${colLetter}${row}`);
+      cell.value = { formula: `=SUM(${colLetter}${rentalIncomeRow}:${colLetter}${otherIncomeRow})` };
       Object.assign(cell, this.formats.currencyBold);
     }
-
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
-    Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
-    Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
-    
-    const totalGrossIncomeRow = row;
-    row++;
-
-    // Vacancy Loss
-    ws.getCell(`A${row}`).value = 'Less: Vacancy Loss';
-    Object.assign(ws.getCell(`A${row}`), this.formats.text);
-
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = -yearlyData[year - 1].vacancyLoss;
-      Object.assign(cell, this.formats.currency);
-      cell.font = { color: { argb: 'DC2626' } };
-    }
-
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
-    
-    const vacancyRow = row;
-    row++;
-
-    // Effective Gross Income
-    ws.mergeCells(`A${row}:H${row}`);
-    const egiCell = ws.getCell(`A${row}`);
-    egiCell.value = 'EFFECTIVE GROSS INCOME (EGI)';
-    Object.assign(egiCell, this.formats.sectionHeaderRevenue);
-    row++;
-
-    ws.getCell(`A${row}`).value = 'Effective Gross Income';
-    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
-
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=${String.fromCharCode(65 + year)}${totalGrossIncomeRow}+${String.fromCharCode(65 + year)}${vacancyRow}` };
-      Object.assign(cell, this.formats.currencyBold);
-    }
-
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
-    Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
-    Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
-    
-    const egiRow = row;
+    const totalGrossIncomeRow = row; // Store this row reference
+    // Store gross income row for cross-sheet reference
+    this.proformaRows['gross_income'] = totalGrossIncomeRow;
     row += 2;
 
     // OPERATING EXPENSES
@@ -731,228 +746,348 @@ export class ClientExcelGenerator {
     Object.assign(expensesHeaderCell, this.formats.sectionHeaderCosts);
     row++;
 
-    // Operating expenses - use calculated values
-    const expenseItems = [
-      ['Property Management', 'propertyManagement'],
-      ['Property Taxes', 'propertyTaxes'],
-      ['Insurance', 'insurance'],
-      ['Maintenance & Repairs', 'maintenanceRepairs'],
-      ['Capital Reserves', 'capitalReserves'],
-      ['Utilities', 'utilities'],
-      ['Legal & Professional', 'legal'],
-      ['Other Operating Expenses', 'otherExpenses']
+    // Vacancy & Credit Loss - Use local cell reference - exactly like backend
+    ws.getCell(`A${row}`).value = 'Vacancy & Credit Loss';
+    Object.assign(ws.getCell(`A${row}`), this.formats.text);
+    
+    for (let year = 0; year < 5; year++) {
+      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const cell = ws.getCell(`${colLetter}${row}`);
+      cell.value = { formula: `=${colLetter}${totalGrossIncomeRow}*${vacancyRateRef}` };
+      Object.assign(cell, this.formats.currency);
+    }
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    Object.assign(ws.getCell(`G${row}`), this.formats.currency);
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
+    const vacancyLossRow = row;
+    row++;
+
+    // Effective Gross Income - exactly like backend
+    ws.getCell(`A${row}`).value = 'EFFECTIVE GROSS INCOME';
+    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
+    
+    for (let year = 0; year < 5; year++) {
+      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const cell = ws.getCell(`${colLetter}${row}`);
+      cell.value = { formula: `=${colLetter}${totalGrossIncomeRow}-${colLetter}${vacancyLossRow}` };
+      Object.assign(cell, this.formats.currencyBold);
+    }
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    Object.assign(ws.getCell(`G${row}`), this.formats.currency);
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
+    const egiRow = row; // Store the EGI row reference
+    row += 2;
+
+    // Operating Expenses Detail - Use cell references for ALL rates - exactly like backend
+    const propertyMgmtRateRef = cellRefs['property_mgmt_rate'];
+    const propertyTaxRateRef = cellRefs['property_tax_rate'];
+    const insuranceRateRef = cellRefs['insurance_rate'];
+    const maintenanceRateRef = cellRefs['maintenance_rate'];
+    const capitalReservesRateRef = cellRefs['capital_reserves_rate'];
+    const utilitiesRateRef = cellRefs['utilities_rate'];
+    const legalRateRef = cellRefs['legal_rate'];
+    const otherExpensesRateRef = cellRefs['other_expenses_rate'];
+    const inflationRateRef = cellRefs['inflation_rate'];
+
+    const expenses = [
+      ['Property Management', 'percentage', propertyMgmtRateRef, 'egi'],
+      ['Property Taxes', 'fixed_rate', propertyTaxRateRef, 'purchase_price'],
+      ['Insurance', 'fixed_rate', insuranceRateRef, 'purchase_price'],
+      ['Maintenance & Repairs', 'percentage', maintenanceRateRef, 'egi'],
+      ['Capital Reserves', 'percentage', capitalReservesRateRef, 'egi'],
+      ['Utilities', 'percentage', utilitiesRateRef, 'egi'],
+      ['Legal & Professional', 'percentage', legalRateRef, 'egi'],
+      ['Other Operating Expenses', 'percentage', otherExpensesRateRef, 'egi']
     ];
 
     const expenseStartRow = row;
 
-    expenseItems.forEach(([expenseName, dataKey]) => {
+    expenses.forEach(([expenseName, calcType, rateRef, base]) => {
       ws.getCell(`A${row}`).value = expenseName;
       Object.assign(ws.getCell(`A${row}`), this.formats.text);
 
-      for (let year = 1; year <= 5; year++) {
-        const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-        cell.value = yearlyData[year - 1][dataKey as keyof typeof yearlyData[0]];
-        Object.assign(cell, this.formats.currency);
+      if (calcType === 'percentage') {
+        for (let year = 0; year < 5; year++) {
+          const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+          const cell = ws.getCell(`${colLetter}${row}`);
+          cell.value = { formula: `=${colLetter}${egiRow}*${rateRef}` };
+          Object.assign(cell, this.formats.currency);
+        }
+      } else if (calcType === 'fixed_rate') {
+        // For property taxes and insurance - use local purchase price cell
+        for (let year = 0; year < 5; year++) {
+          const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
+          cell.value = { formula: `=${cellRefs['purchase_price']}*${rateRef}*POWER(1+${inflationRateRef},${year})` };
+          Object.assign(cell, this.formats.currency);
+        }
       }
 
-      ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
+      ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
       Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-      ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
+      ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
       Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
       
       row++;
     });
 
-    // Total Operating Expenses
+    // Total Operating Expenses - exactly like backend
     ws.getCell(`A${row}`).value = 'TOTAL OPERATING EXPENSES';
     Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
-
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=SUM(${String.fromCharCode(65 + year)}${expenseStartRow}:${String.fromCharCode(65 + year)}${row-1})` };
+    
+    for (let year = 0; year < 5; year++) {
+      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const cell = ws.getCell(`${colLetter}${row}`);
+      cell.value = { formula: `=SUM(${colLetter}${expenseStartRow}:${colLetter}${row - 1})` };
       Object.assign(cell, this.formats.currencyBold);
     }
-
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
-    Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
-    Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
-    
-    const totalExpensesRow = row;
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    Object.assign(ws.getCell(`G${row}`), this.formats.currency);
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
+    const totalExpensesRow = row; // Store the total expenses row reference
+    // Store total expenses row for cross-sheet reference
+    this.proformaRows['total_expenses'] = totalExpensesRow;
     row += 2;
 
-    // NET OPERATING INCOME
+    // NET OPERATING INCOME - exactly like backend
     ws.mergeCells(`A${row}:H${row}`);
     const noiHeaderCell = ws.getCell(`A${row}`);
-    noiHeaderCell.value = 'NET OPERATING INCOME (NOI)';
-    Object.assign(noiHeaderCell, this.formats.sectionHeaderEquity);
+    noiHeaderCell.value = 'NET OPERATING INCOME';
+    Object.assign(noiHeaderCell, this.formats.sectionHeaderRevenue);
     row++;
 
-    ws.getCell(`A${row}`).value = 'Net Operating Income';
+    ws.getCell(`A${row}`).value = 'NET OPERATING INCOME (NOI)';
     Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
-
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=${String.fromCharCode(65 + year)}${egiRow}-${String.fromCharCode(65 + year)}${totalExpensesRow}` };
-      Object.assign(cell, this.formats.currencyBold);
-      cell.font = { bold: true, color: { argb: this.colors.equity } };
-    }
-
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
-    Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
-    Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
     
+    // Use the stored row references for accurate calculation
+    for (let year = 0; year < 5; year++) {
+      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const cell = ws.getCell(`${colLetter}${row}`);
+      cell.value = { formula: `=${colLetter}${egiRow}-${colLetter}${totalExpensesRow}` };
+      Object.assign(cell, this.formats.currencyBold);
+    }
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    Object.assign(ws.getCell(`G${row}`), this.formats.currency);
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
     const noiRow = row;
+    // Store NOI row for cross-sheet reference
+    this.proformaRows['noi'] = noiRow;
     row += 2;
 
-    // DEBT SERVICE - Use calculated value to ensure it's populated
-    ws.getCell(`A${row}`).value = 'DEBT SERVICE';
-    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
+    // DEBT SERVICE - exactly like backend
+    ws.mergeCells(`A${row}:H${row}`);
+    const debtHeaderCell = ws.getCell(`A${row}`);
+    debtHeaderCell.value = 'DEBT SERVICE';
+    Object.assign(debtHeaderCell, this.formats.sectionHeaderCosts);
+    row++;
 
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = yearlyData[year - 1].debtService;
+    ws.getCell(`A${row}`).value = 'Annual Debt Service (P&I)';
+    Object.assign(ws.getCell(`A${row}`), this.formats.text);
+
+    // Use the backend's debt formula approach
+    for (let year = 0; year < 5; year++) {
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
+      // Formula: (Purchase_Price * (1 - Down_Payment_Pct)) * Interest_Rate * 1.1
+      cell.value = { formula: `=(${cellRefs['purchase_price']}*(1-${cellRefs['down_payment_pct']}))*${cellRefs['interest_rate']}*1.1` };
       Object.assign(cell, this.formats.currency);
     }
-
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
     Object.assign(ws.getCell(`G${row}`), this.formats.currency);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
     Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
-    
     const debtServiceRow = row;
-    row++;
-
-    // CASH FLOW BEFORE TAX
-    ws.getCell(`A${row}`).value = 'CASH FLOW BEFORE TAX';
-    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
-
-    for (let year = 1; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=${String.fromCharCode(65 + year)}${noiRow}-${String.fromCharCode(65 + year)}${debtServiceRow}` };
-      Object.assign(cell, this.formats.currencyBold);
-      
-      // Use conditional formatting for positive/negative
-      cell.font = { bold: true, color: { argb: this.colors.revenue } };
-    }
-
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
-    Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
-    Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
-    
-    const cashFlowRow = row;
+    // Store debt service row for cross-sheet reference
+    this.proformaRows['debt_service'] = debtServiceRow;
     row += 2;
 
-    // CAPITAL EVENTS
+    // CASH FLOW FROM OPERATIONS - exactly like backend
+    ws.mergeCells(`A${row}:H${row}`);
+    const cashFlowHeaderCell = ws.getCell(`A${row}`);
+    cashFlowHeaderCell.value = 'CASH FLOW FROM OPERATIONS';
+    Object.assign(cashFlowHeaderCell, this.formats.sectionHeaderEquity);
+    row++;
+
+    ws.getCell(`A${row}`).value = 'Before-Tax Cash Flow';
+    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
+    
+    for (let year = 0; year < 5; year++) {
+      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const cell = ws.getCell(`${colLetter}${row}`);
+      cell.value = { formula: `=${colLetter}${noiRow}-${colLetter}${debtServiceRow}` };
+      Object.assign(cell, this.formats.currencyBold);
+    }
+    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnitsRef}` };
+    Object.assign(ws.getCell(`G${row}`), this.formats.currency);
+    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqftRef}` };
+    Object.assign(ws.getCell(`H${row}`), this.formats.currencyPerSF);
+    const beforeTaxCashFlowRow = row;
+    // Store cash flow row for cross-sheet reference
+    this.proformaRows['before_tax_cash_flow'] = beforeTaxCashFlowRow;
+    row += 2;
+
+    // CAPITAL EVENTS - exactly like backend
     ws.mergeCells(`A${row}:H${row}`);
     const capitalEventsCell = ws.getCell(`A${row}`);
     capitalEventsCell.value = 'CAPITAL EVENTS';
     Object.assign(capitalEventsCell, this.formats.sectionHeaderTimeline);
     row++;
 
-    // Initial Investment
+    // Initial Investment - exactly like backend
     ws.getCell(`A${row}`).value = 'Initial Investment';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
-
-    const initialInvestment = -(purchasePrice * downPaymentPct + purchasePrice * 0.03);
-    ws.getCell(`B${row}`).value = initialInvestment;
+    
+    // Initial investment = Down Payment + Closing Costs using local cells
+    ws.getCell(`B${row}`).value = { formula: `=-(${cellRefs['purchase_price']}*${cellRefs['down_payment_pct']}+${cellRefs['purchase_price']}*${cellRefs['closing_costs_pct']})` };
     Object.assign(ws.getCell(`B${row}`), this.formats.currency);
-
-    for (let year = 2; year <= 5; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
+    
+    for (let year = 1; year < 5; year++) {
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
       cell.value = 0;
       Object.assign(cell, this.formats.currency);
     }
-    
     const initialInvestmentRow = row;
     row++;
 
-    // Property Sale (Year 5)
+    // Property Sale Analysis (Year 5) - exactly like backend
     ws.getCell(`A${row}`).value = 'Property Sale Analysis (Year 5)';
     Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
     row++;
 
-    // Sale Price
+    // Sale Price = NOI Year 5 / Exit Cap Rate - Use local cell references
+    const capRateExitRef = cellRefs['cap_rate_exit'];
     ws.getCell(`A${row}`).value = 'Sale Price (NOI ÷ Exit Cap Rate)';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
-
-    for (let year = 1; year <= 4; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
+    
+    for (let year = 0; year < 4; year++) {
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
       cell.value = 0;
       Object.assign(cell, this.formats.currency);
     }
-
-    const salePrice = yearlyData[4].noi / 0.06;
-    ws.getCell(`F${row}`).value = salePrice;
+    // Use cell reference for exit cap rate
+    ws.getCell(`F${row}`).value = { formula: `=F${noiRow}/${capRateExitRef}` };
     Object.assign(ws.getCell(`F${row}`), this.formats.currency);
-    
     const salePriceRow = row;
     row++;
 
-    // Selling Costs
+    // Selling Costs - exactly like backend
+    const sellingCostsPctRef = cellRefs['selling_costs_pct'];
     ws.getCell(`A${row}`).value = 'Selling Costs';
     Object.assign(ws.getCell(`A${row}`), this.formats.text);
-
-    for (let year = 1; year <= 4; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
+    
+    for (let year = 0; year < 4; year++) {
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
       cell.value = 0;
       Object.assign(cell, this.formats.currency);
     }
-
-    const sellingCosts = salePrice * 0.07;
-    ws.getCell(`F${row}`).value = sellingCosts;
+    // Reference the sale price in column F (Year 5)
+    ws.getCell(`F${row}`).value = { formula: `=F${salePriceRow}*${sellingCostsPctRef}` };
     Object.assign(ws.getCell(`F${row}`), this.formats.currency);
-    
     const sellingCostsRow = row;
     row++;
 
-    // Net Sale Proceeds
-    ws.getCell(`A${row}`).value = 'Net Sale Proceeds';
-    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
-
-    for (let year = 1; year <= 4; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
+    // Remaining Loan Balance - exactly like backend
+    ws.getCell(`A${row}`).value = 'Remaining Loan Balance';
+    Object.assign(ws.getCell(`A${row}`), this.formats.text);
+    
+    for (let year = 0; year < 4; year++) {
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
       cell.value = 0;
       Object.assign(cell, this.formats.currency);
     }
+    // Approximation: 85% of original loan amount remains after 5 years (typical for 30-year loan)
+    const remainingBalanceFormula = `=(${cellRefs['purchase_price']}*(1-${cellRefs['down_payment_pct']}))*0.85`;
+    ws.getCell(`F${row}`).value = { formula: remainingBalanceFormula };
+    Object.assign(ws.getCell(`F${row}`), this.formats.currency);
+    const remainingBalanceRow = row;
+    row++;
 
-    ws.getCell(`F${row}`).value = { formula: `=F${salePriceRow}-F${sellingCostsRow}` };
-    Object.assign(ws.getCell(`F${row}`), this.formats.currencyBold);
+    // Net Sale Proceeds - exactly like backend
+    ws.getCell(`A${row}`).value = 'Net Sale Proceeds';
+    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
     
+    for (let year = 0; year < 4; year++) {
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
+      cell.value = 0;
+      Object.assign(cell, this.formats.currency);
+    }
+    // Formula: Sale Price - Selling Costs - Remaining Loan Balance
+    ws.getCell(`F${row}`).value = { formula: `=F${salePriceRow}-F${sellingCostsRow}-F${remainingBalanceRow}` };
+    Object.assign(ws.getCell(`F${row}`), this.formats.currencyBold);
     const netSaleProceedsRow = row;
     row += 2;
 
-    // TOTAL CASH FLOW
-    ws.getCell(`A${row}`).value = 'TOTAL CASH FLOW (Operating + Capital)';
+    // TOTAL RETURNS - exactly like backend
+    ws.mergeCells(`A${row}:H${row}`);
+    const totalReturnsCell = ws.getCell(`A${row}`);
+    totalReturnsCell.value = 'TOTAL INVESTMENT RETURNS';
+    Object.assign(totalReturnsCell, this.formats.sectionHeaderEquity);
+    row++;
+
+    // Initial Investment (Year 0) - Reference the earlier calculation
+    ws.getCell(`A${row}`).value = 'Initial Investment';
+    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
+    
+    // Reference the initial investment row from capital events
+    ws.getCell(`B${row}`).value = { formula: `=B${initialInvestmentRow}` };
+    Object.assign(ws.getCell(`B${row}`), this.formats.currencyBold);
+    
+    for (let year = 1; year < 5; year++) {
+      const cell = ws.getCell(`${String.fromCharCode(66 + year)}${row}`);
+      cell.value = 0;
+      Object.assign(cell, this.formats.currency);
+    }
+    const initialInvRow = row;
+    row++;
+
+    ws.getCell(`A${row}`).value = 'Total Cash Flow';
     Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
 
-    for (let year = 1; year <= 4; year++) {
-      const cell = ws.getCell(`${String.fromCharCode(65 + year)}${row}`);
-      cell.value = { formula: `=${String.fromCharCode(65 + year)}${cashFlowRow}+${String.fromCharCode(65 + year)}${initialInvestmentRow}` };
+    for (let year = 0; year < 5; year++) {
+      const colLetter = String.fromCharCode(66 + year); // B, C, D, E, F for years 1-5
+      const cell = ws.getCell(`${colLetter}${row}`);
+      
+      if (year === 0) {
+        // Year 1: Initial Investment + Before-Tax Cash Flow
+        cell.value = { formula: `=B${initialInvRow}+B${beforeTaxCashFlowRow}` };
+      } else if (year === 4) {
+        // Year 5: Before-Tax Cash Flow + Net Sale Proceeds
+        cell.value = { formula: `=F${beforeTaxCashFlowRow}+F${netSaleProceedsRow}` };
+      } else {
+        // Years 2-4: Just Before-Tax Cash Flow
+        cell.value = { formula: `=${colLetter}${beforeTaxCashFlowRow}` };
+      }
       Object.assign(cell, this.formats.currencyBold);
-      cell.font = { bold: true, color: { argb: this.colors.revenue } };
     }
+    const totalCashFlowRow = row;
+    row += 2;
 
-    // Year 5 includes sale proceeds
-    ws.getCell(`F${row}`).value = { formula: `=F${cashFlowRow}+F${netSaleProceedsRow}` };
-    Object.assign(ws.getCell(`F${row}`), this.formats.currencyBold);
-    ws.getCell(`F${row}`).font = { bold: true, color: { argb: this.colors.revenue } };
+    // Add IRR and Equity Multiple calculations - exactly like backend
+    ws.getCell(`A${row}`).value = 'Investment Performance Metrics';
+    Object.assign(ws.getCell(`A${row}`), this.formats.textBold);
+    row++;
 
-    ws.getCell(`G${row}`).value = { formula: `=B${row}/${totalUnits}` };
-    Object.assign(ws.getCell(`G${row}`), this.formats.currencyBold);
-    ws.getCell(`H${row}`).value = { formula: `=B${row}/${totalSqft}` };
-    Object.assign(ws.getCell(`H${row}`), this.formats.currencyBold);
+    // IRR Calculation
+    ws.getCell(`A${row}`).value = 'IRR (Internal Rate of Return)';
+    Object.assign(ws.getCell(`A${row}`), this.formats.text);
+    ws.getCell(`B${row}`).value = { formula: `=IRR(B${totalCashFlowRow}:F${totalCashFlowRow})` };
+    Object.assign(ws.getCell(`B${row}`), this.formats.percentage);
+    row++;
 
-    // Store pro forma row references for use in Executive Summary
-    this.proformaRows = {
-      grossIncome: rentalIncomeRow,
-      totalExpenses: totalExpensesRow,
-      noi: noiRow,
-      debtService: debtServiceRow,
-      cashFlow: cashFlowRow
-    };
+    // Equity Multiple 
+    ws.getCell(`A${row}`).value = 'Equity Multiple';
+    Object.assign(ws.getCell(`A${row}`), this.formats.text);
+    ws.getCell(`B${row}`).value = { formula: `=SUM(C${totalCashFlowRow}:F${totalCashFlowRow})/ABS(B${totalCashFlowRow})` };
+    Object.assign(ws.getCell(`B${row}`), this.formats.number);
+    row++;
+
+    // Total ROI (Unlevered) - calculated using formulas  
+    ws.getCell(`A${row}`).value = 'Total ROI (Unlevered)';
+    Object.assign(ws.getCell(`A${row}`), this.formats.text);
+    ws.getCell(`B${row}`).value = { formula: `=(SUM(C${totalCashFlowRow}:F${totalCashFlowRow})/ABS(B${initialInvestmentRow})-1)` };
+    Object.assign(ws.getCell(`B${row}`), this.formats.percentage);
   }
 
   private async createAssumptionsSheet(
