@@ -1,0 +1,36 @@
+# Exclude large data files (these are the main size culprits)
+data/
+models/
+*.csv
+*.joblib
+*.exe
+
+# Exclude Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Exclude development and testing files
+test_*.py
+tune_*.py
+train_*.py
+
+# Exclude build artifacts
+build/
+dist/
+node_modules/
+
+# Exclude documentation
+*.md
+*.pdf
+investment_report.pdf
+
+# Keep backend/utils for excel_generator
+!backend/utils/
+
+# Keep API and utils directories
+!api/
+!utils/ 
