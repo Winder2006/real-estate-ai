@@ -18,9 +18,9 @@ from utils.excel_generator import RealEstateExcelGenerator
 
 # Try to import ML models but don't fail if they're not available
 try:
-    from utils.ml_models import RentPredictor, PropertyPricePredictor
+from utils.ml_models import RentPredictor, PropertyPricePredictor
     from utils.data_loader import load_and_clean_sales_data, load_rental_data
-    from utils.analysis import calculate_investment_metrics
+from utils.analysis import calculate_investment_metrics
     ML_MODELS_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️  ML models not available: {e}")
@@ -238,9 +238,9 @@ def get_market_data():
         
         # Sales data statistics
         if comps_data is not None:
-            avg_price = comps_data['price'].mean()
-            avg_price_per_sqft = (comps_data['price'] / comps_data['sqft']).mean()
-            
+        avg_price = comps_data['price'].mean()
+        avg_price_per_sqft = (comps_data['price'] / comps_data['sqft']).mean()
+        
             response_data['marketData']['sales'] = {
                 'avgPrice': float(avg_price),
                 'avgPricePerSqft': float(avg_price_per_sqft),

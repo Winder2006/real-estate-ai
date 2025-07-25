@@ -110,8 +110,8 @@ const InvestmentMetrics: React.FC<InvestmentMetricsProps> = ({ results, property
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-2">
-          <Calculator className="h-6 w-6 text-primary-600" />
-          <h2 className="text-2xl font-bold text-gray-900">Investment Analysis</h2>
+        <Calculator className="h-6 w-6 text-primary-600" />
+        <h2 className="text-2xl font-bold text-gray-900">Investment Analysis</h2>
         </div>
         <ExcelExportButton
           propertyData={propertyData}
