@@ -34,9 +34,9 @@ class RealEstateExcelGenerator:
         # Define formats
         self._create_formats(workbook)
         
-        # Generate each worksheet - Create Pro Forma first so row references are available for Executive Summary
-        self._create_proforma_sheet(proforma_ws, property_data, analysis_results, assumptions, project_name)
+        # Generate each worksheet - Create Executive Summary first so cell references are available for Pro Forma
         self._create_summary_sheet(summary_ws, property_data, analysis_results, assumptions, project_name)
+        self._create_proforma_sheet(proforma_ws, property_data, analysis_results, assumptions, project_name)
         self._create_assumptions_sheet(assumptions_ws, property_data, assumptions)
         self._create_sensitivity_sheet(sensitivity_ws, property_data, analysis_results, assumptions)
         
