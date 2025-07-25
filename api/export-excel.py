@@ -4,13 +4,7 @@ import os
 import traceback
 from http.server import BaseHTTPRequestHandler
 
-# Test pandas and xlsxwriter imports first
-try:
-    import pandas as pd
-    print("✅ Successfully imported pandas")
-except ImportError as e:
-    print(f"❌ Failed to import pandas: {e}")
-
+# Test xlsxwriter import
 try:
     import xlsxwriter
     print("✅ Successfully imported xlsxwriter")
