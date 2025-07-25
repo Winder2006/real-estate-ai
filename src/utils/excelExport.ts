@@ -31,24 +31,31 @@ export const exportToExcel = async (
         property_type: propertyData.propertyType
       },
       analysisResults: {
-        monthly_rent: analysisResults.monthlyRent,
-        total_cash_required: analysisResults.totalCashRequired,
+        monthlyRent: analysisResults.monthlyRent,
+        totalCashRequired: analysisResults.totalCashRequired,
         irr: analysisResults.irr / 100, // Convert to decimal
-        total_return_multiple: analysisResults.totalReturn,
-        annual_expenses: analysisResults.monthlyExpenses * 12
+        totalReturn: analysisResults.totalReturn,
+        monthlyExpenses: analysisResults.monthlyExpenses,
+        annualExpenses: analysisResults.monthlyExpenses * 12
       },
       assumptions: {
-        purchase_price: propertyData.price,
-        down_payment_percent: assumptions.downPaymentPct / 100, // Convert to decimal
-        interest_rate: assumptions.interestRate / 100, // Convert to decimal
-        loan_term_years: assumptions.loanTermYears,
-        hold_period: 5,
-        cap_rate: 0.055,
-        annual_rent_growth: 0.03,
-        annual_expense_growth: 0.025,
-        vacancy_rate: 0.05,
-        management_fee_percent: 0.06,
-        exit_cap_rate: 0.06
+        purchasePrice: propertyData.price,
+        downPaymentPct: assumptions.downPaymentPct, // Keep as percentage 
+        interestRate: assumptions.interestRate, // Keep as percentage
+        loanTerm: assumptions.loanTermYears,
+        holdPeriod: 5,
+        capRate: 5.5,
+        annualRentGrowth: 3.0,
+        annualExpenseGrowth: 2.5,
+        vacancyRate: 5.0,
+        managementFeePercent: 6.0,
+        exitCapRate: 6.0,
+        propertyTaxRate: 3.0,
+        insuranceRate: 0.5,
+        maintenanceRate: 1.0,
+        capitalReservesRate: 1.0,
+        closingCostsPct: 3.0,
+        noiMargin: 70.0
       },
       projectName: projectName
     };
