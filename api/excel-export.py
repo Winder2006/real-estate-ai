@@ -118,29 +118,15 @@ class handler(BaseHTTPRequestHandler):
             print(f"⚙️ Assumptions keys: {list(assumptions.keys())}")
             print(f"📝 Project name: {project_name}")
             
-            # Generate Excel file using SIMPLE working generator  
-            print("🏗️ Creating SIMPLE working Excel generator...")
+            # Generate Excel file using the ORIGINAL working generator
+            print("🏗️ Creating Excel generator...")
+            excel_generator = RealEstateExcelGenerator()
             
-            # Import the simple generator
-            import sys
-            import os
-            sys.path.insert(0, os.path.dirname(__file__))
-            from simple_excel_fix import SimpleExcelGenerator
-            
-            excel_generator = SimpleExcelGenerator()
-            
-            print("📋 Calling create_pro_forma on REAL generator...")
-            print(f"🔍 Debugging data being passed:")
-            print(f"   Property data keys: {list(property_data.keys())}")
-            print(f"   Analysis results keys: {list(results.keys())}")
-            print(f"   Assumptions keys: {list(assumptions.keys())}")
-            print(f"   Sample property data: {dict(list(property_data.items())[:3])}")
-            print(f"   Sample analysis results: {dict(list(results.items())[:3])}")
-            print(f"   Sample assumptions: {dict(list(assumptions.items())[:3])}")
+            print("📋 Calling create_pro_forma with EXACT backend parameter names...")
             
             excel_data = excel_generator.create_pro_forma(
                 property_data,
-                results,
+                results,  # This maps to analysis_results parameter
                 assumptions,
                 project_name
             )

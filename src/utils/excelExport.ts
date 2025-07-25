@@ -33,14 +33,14 @@ export const exportToExcel = async (
       analysisResults: {
         monthlyRent: analysisResults.monthlyRent || 0,
         totalCashRequired: analysisResults.totalCashRequired || (propertyData.price * (assumptions.downPaymentPct / 100)),
-        irr: (analysisResults.irr || analysisResults.totalROI || 15) / 100, // Convert to decimal, default 15%
-        totalReturn: analysisResults.totalReturn || 2.0, // Default 2x multiple
-        monthlyExpenses: analysisResults.monthlyExpenses || (analysisResults.monthlyRent * 0.35), // Default 35% expense ratio
+        irr: (analysisResults.irr || analysisResults.totalROI || 15) / 100,
+        totalReturn: analysisResults.totalReturn || 2.0,
+        monthlyExpenses: analysisResults.monthlyExpenses || (analysisResults.monthlyRent * 0.35),
         annualExpenses: (analysisResults.monthlyExpenses || (analysisResults.monthlyRent * 0.35)) * 12,
-        capRate: (analysisResults.capRate || 6) / 100, // Convert to decimal
-        cashOnCash: (analysisResults.cashOnCash || 8) / 100, // Convert to decimal
-        monthlyCashFlow: analysisResults.monthlyCashFlow || ((analysisResults.monthlyRent || 0) * 0.15), // Default 15% cash flow margin
-        rentToPrice: analysisResults.rentToPrice || ((analysisResults.monthlyRent || 0) * 12 / propertyData.price * 100) // Calculate rent-to-price ratio
+        capRate: (analysisResults.capRate || 6),  // Keep as percentage for backend
+        cashOnCash: (analysisResults.cashOnCash || 8), // Keep as percentage for backend  
+        monthlyCashFlow: analysisResults.monthlyCashFlow || ((analysisResults.monthlyRent || 0) * 0.15),
+        rentToPrice: analysisResults.rentToPrice || ((analysisResults.monthlyRent || 0) * 12 / propertyData.price * 100)
       },
       assumptions: {
         purchasePrice: propertyData.price,
