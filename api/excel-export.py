@@ -118,9 +118,16 @@ class handler(BaseHTTPRequestHandler):
             print(f"⚙️ Assumptions keys: {list(assumptions.keys())}")
             print(f"📝 Project name: {project_name}")
             
-            # Generate Excel file using the REAL generator
-            print("🏗️ Creating REAL Excel generator...")
-            excel_generator = RealEstateExcelGenerator()
+            # Generate Excel file using SIMPLE working generator  
+            print("🏗️ Creating SIMPLE working Excel generator...")
+            
+            # Import the simple generator
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(__file__))
+            from simple_excel_fix import SimpleExcelGenerator
+            
+            excel_generator = SimpleExcelGenerator()
             
             print("📋 Calling create_pro_forma on REAL generator...")
             print(f"🔍 Debugging data being passed:")
