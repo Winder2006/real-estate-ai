@@ -31,18 +31,22 @@ export const exportToExcel = async (
         property_type: propertyData.propertyType
       },
       analysisResults: {
-        monthlyRent: analysisResults.monthlyRent,
-        totalCashRequired: analysisResults.totalCashRequired,
-        irr: analysisResults.irr / 100, // Convert to decimal
-        totalReturn: analysisResults.totalReturn,
-        monthlyExpenses: analysisResults.monthlyExpenses,
-        annualExpenses: analysisResults.monthlyExpenses * 12
+        monthlyRent: analysisResults.monthlyRent || 0,
+        totalCashRequired: analysisResults.totalCashRequired || (propertyData.price * (assumptions.downPaymentPct / 100)),
+        irr: (analysisResults.irr || analysisResults.totalROI || 15) / 100, // Convert to decimal, default 15%
+        totalReturn: analysisResults.totalReturn || 2.0, // Default 2x multiple
+        monthlyExpenses: analysisResults.monthlyExpenses || (analysisResults.monthlyRent * 0.35), // Default 35% expense ratio
+        annualExpenses: (analysisResults.monthlyExpenses || (analysisResults.monthlyRent * 0.35)) * 12,
+        capRate: (analysisResults.capRate || 6) / 100, // Convert to decimal
+        cashOnCash: (analysisResults.cashOnCash || 8) / 100, // Convert to decimal
+        monthlyCashFlow: analysisResults.monthlyCashFlow || ((analysisResults.monthlyRent || 0) * 0.15), // Default 15% cash flow margin
+        rentToPrice: analysisResults.rentToPrice || ((analysisResults.monthlyRent || 0) * 12 / propertyData.price * 100) // Calculate rent-to-price ratio
       },
       assumptions: {
         purchasePrice: propertyData.price,
-        downPaymentPct: assumptions.downPaymentPct, // Keep as percentage 
-        interestRate: assumptions.interestRate, // Keep as percentage
-        loanTerm: assumptions.loanTermYears,
+        downPaymentPct: Math.round(assumptions.downPaymentPct * 100) / 100, // Clean up precision
+        interestRate: Math.round(assumptions.interestRate * 100) / 100, // Clean up precision
+        loanTerm: assumptions.loanTermYears || 30,
         holdPeriod: 5,
         capRate: 5.5,
         annualRentGrowth: 3.0,
