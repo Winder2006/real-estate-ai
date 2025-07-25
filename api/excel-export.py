@@ -123,19 +123,19 @@ class handler(BaseHTTPRequestHandler):
             excel_generator = RealEstateExcelGenerator()
             
             print("📋 Calling create_pro_forma on REAL generator...")
-            excel_buffer = excel_generator.create_pro_forma(
+            excel_data = excel_generator.create_pro_forma(
                 property_data=property_data,
                 analysis_results=results,
                 assumptions=assumptions,
                 project_name=project_name
             )
             
-            if excel_buffer is None:
+            if excel_data is None:
                 print("❌ Excel generation returned None")
                 self.send_error(500, "Failed to generate Excel file")
                 return
             
-            print(f"✅ Excel generated successfully. Size: {len(excel_buffer.getvalue())} bytes")
+            print(f"✅ Excel generated successfully. Size: {len(excel_data)} bytes")
             
             # Generate filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -149,10 +149,10 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
             self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
-            self.send_header('Content-Length', str(len(excel_buffer.getvalue())))
+            self.send_header('Content-Length', str(len(excel_data)))
             self.end_headers()
             
-            self.wfile.write(excel_buffer.getvalue())
+            self.wfile.write(excel_data)
             print("✅ Response sent successfully")
             
         except Exception as e:
