@@ -4,6 +4,8 @@ import os
 import traceback
 from http.server import BaseHTTPRequestHandler
 
+# Updated: 2025-01-24 19:23 - Enhanced debugging version
+
 # Test xlsxwriter import
 try:
     import xlsxwriter
