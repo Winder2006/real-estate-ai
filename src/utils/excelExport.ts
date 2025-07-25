@@ -54,10 +54,10 @@ export const exportToExcel = async (
     };
 
     console.log('📦 Request payload:', payload);
-    console.log('🌐 Making API call to /api/export-excel...');
+    console.log('🌐 Making API call to /api/excel-export...');
 
-    // Call the Vercel Python serverless function
-    const response = await fetch('/api/export-excel', {
+    // Call the NEW Vercel Python serverless function
+    const response = await fetch('/api/excel-export', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
