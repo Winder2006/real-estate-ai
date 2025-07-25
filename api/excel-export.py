@@ -123,11 +123,19 @@ class handler(BaseHTTPRequestHandler):
             excel_generator = RealEstateExcelGenerator()
             
             print("📋 Calling create_pro_forma on REAL generator...")
+            print(f"🔍 Debugging data being passed:")
+            print(f"   Property data keys: {list(property_data.keys())}")
+            print(f"   Analysis results keys: {list(results.keys())}")
+            print(f"   Assumptions keys: {list(assumptions.keys())}")
+            print(f"   Sample property data: {dict(list(property_data.items())[:3])}")
+            print(f"   Sample analysis results: {dict(list(results.items())[:3])}")
+            print(f"   Sample assumptions: {dict(list(assumptions.items())[:3])}")
+            
             excel_data = excel_generator.create_pro_forma(
-                property_data=property_data,
-                analysis_results=results,
-                assumptions=assumptions,
-                project_name=project_name
+                property_data,
+                results,
+                assumptions,
+                project_name
             )
             
             if excel_data is None:
