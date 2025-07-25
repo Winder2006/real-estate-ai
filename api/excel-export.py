@@ -43,15 +43,32 @@ print("🔧 Testing Excel generator import...")
 RealEstateExcelGenerator = None
 
 # Try direct import
+print("🔧 Attempting to import excel_generator...")
 try:
+    import sys
+    print(f"📍 Python path: {sys.path}")
+    
+    # Try importing pandas first
+    try:
+        import pandas as pd
+        print("✅ Pandas imported successfully")
+    except Exception as pandas_error:
+        print(f"❌ Pandas import failed: {pandas_error}")
+    
+    # Now try the generator
     from excel_generator import RealEstateExcelGenerator
     print("✅ Successfully imported RealEstateExcelGenerator")
+    
+    # Test if we can create an instance
+    test_generator = RealEstateExcelGenerator()
+    print("✅ Successfully created RealEstateExcelGenerator instance")
+    
 except ImportError as e:
     print(f"❌ Failed direct import: {e}")
     print(f"❌ Traceback: {traceback.format_exc()}")
     
-    # Try creating a comprehensive Excel generator
-    print("🔧 Creating comprehensive Excel generator...")
+    # If main generator fails, let's use the comprehensive fallback
+    print("🔧 Using comprehensive fallback generator...")
     try:
         class ComprehensiveExcelGenerator:
             def __init__(self):
