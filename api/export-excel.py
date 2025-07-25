@@ -11,13 +11,43 @@ try:
 except ImportError as e:
     print(f"❌ Failed to import xlsxwriter: {e}")
 
+# Test basic imports first
+try:
+    from datetime import datetime, timedelta
+    print("✅ Successfully imported datetime")
+except ImportError as e:
+    print(f"❌ Failed to import datetime: {e}")
+
+try:
+    import io
+    print("✅ Successfully imported io")
+except ImportError as e:
+    print(f"❌ Failed to import io: {e}")
+
 # Import from local excel_generator file
+print("🔄 Attempting to import RealEstateExcelGenerator...")
 try:
     from excel_generator import RealEstateExcelGenerator
     print("✅ Successfully imported RealEstateExcelGenerator")
 except ImportError as e:
     print(f"❌ Failed to import RealEstateExcelGenerator: {e}")
     print(f"❌ Import traceback: {traceback.format_exc()}")
+    
+    # Try to see what files are in the api directory
+    try:
+        api_files = os.listdir('/var/task/api')
+        print(f"📁 Files in /var/task/api: {api_files}")
+    except:
+        try:
+            current_files = os.listdir('.')
+            print(f"📁 Files in current directory: {current_files}")
+        except Exception as file_error:
+            print(f"❌ Can't list files: {file_error}")
+    
+    RealEstateExcelGenerator = None
+except Exception as e:
+    print(f"❌ Unexpected error importing RealEstateExcelGenerator: {e}")
+    print(f"❌ Traceback: {traceback.format_exc()}")
     RealEstateExcelGenerator = None
 
 from datetime import datetime
