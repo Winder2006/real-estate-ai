@@ -46,10 +46,38 @@ print("🔧 Importing pandas...")
 import pandas as pd
 print("✅ Pandas imported successfully")
 
-# Import the real generator
+# Import the real generator with proper path handling
 print("🔧 Importing RealEstateExcelGenerator...")
-from excel_generator import RealEstateExcelGenerator
-print("✅ Successfully imported RealEstateExcelGenerator")
+
+# Add current directory to Python path for Vercel
+import sys
+import os
+current_dir = os.path.dirname(__file__)
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+    print(f"📍 Added to Python path: {current_dir}")
+
+# Try multiple import strategies
+try:
+    from excel_generator import RealEstateExcelGenerator
+    print("✅ Successfully imported RealEstateExcelGenerator (direct import)")
+except ImportError:
+    try:
+        # Try with explicit path
+        sys.path.insert(0, '/var/task/api')
+        from excel_generator import RealEstateExcelGenerator
+        print("✅ Successfully imported RealEstateExcelGenerator (with /var/task/api path)")
+    except ImportError:
+        # Try importing from current working directory
+        import importlib.util
+        excel_gen_path = os.path.join(current_dir, 'excel_generator.py')
+        spec = importlib.util.spec_from_file_location("excel_generator", excel_gen_path)
+        excel_generator_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(excel_generator_module)
+        RealEstateExcelGenerator = excel_generator_module.RealEstateExcelGenerator
+        print("✅ Successfully imported RealEstateExcelGenerator (via importlib)")
+    
+print("✅ RealEstateExcelGenerator import successful")
 
 # Test if we can create an instance
 print("🔧 Testing generator instantiation...")
