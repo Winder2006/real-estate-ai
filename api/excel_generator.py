@@ -34,9 +34,9 @@ class RealEstateExcelGenerator:
         # Define formats
         self._create_formats(workbook)
         
-        # Generate each worksheet - Create Executive Summary first so cell references are available for Pro Forma
-        self._create_summary_sheet(summary_ws, property_data, analysis_results, assumptions, project_name)
+        # Generate each worksheet - Create Pro Forma first so row references are available for Executive Summary
         self._create_proforma_sheet(proforma_ws, property_data, analysis_results, assumptions, project_name)
+        self._create_summary_sheet(summary_ws, property_data, analysis_results, assumptions, project_name)
         self._create_assumptions_sheet(assumptions_ws, property_data, assumptions)
         self._create_sensitivity_sheet(sensitivity_ws, property_data, analysis_results, assumptions)
         
@@ -692,11 +692,18 @@ class RealEstateExcelGenerator:
         # Use the local cell references defined earlier
         
         for year in range(5):
-            ws.write_formula(row, year + 1, f"={annual_rent_ref}*POWER(1+{rent_growth_ref},{year})", self.currency_format)
+            # Use direct values instead of cross-sheet references to avoid circular dependencies
+            annual_rent_value = base_annual_rent  # This is already calculated above
+            rent_growth_rate = 0.03  # 3% growth
+            year_rent = annual_rent_value * ((1 + rent_growth_rate) ** year)
+            ws.write(row, year + 1, year_rent, self.currency_format)
         
-        # Per unit and per SF calculations with proper references
-        ws.write_formula(row, 6, f"=B{row+1}/{total_units_ref}", self.currency_format)
-        ws.write_formula(row, 7, f"=B{row+1}/{total_sqft_ref}", self.currency_per_sf)
+        # Per unit and per SF calculations with direct values
+        year_1_rent = base_annual_rent  # Year 1 rent
+        rent_per_unit = year_1_rent / total_units if total_units > 0 else 0
+        rent_per_sf = year_1_rent / total_sqft if total_sqft > 0 else 0
+        ws.write(row, 6, rent_per_unit, self.currency_format)
+        ws.write(row, 7, rent_per_sf, self.currency_per_sf)
         rental_income_row = row
         row += 1
         
